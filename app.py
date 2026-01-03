@@ -140,8 +140,8 @@ for news in news_items:
 # -----------------------------------------------------------------------------
 if page == "Suivi des Marchés":
     st.header("📊 Suivi des Marchés Clés")
-    selected_indices = st.multiselect("Quels indices voulez-vous afficher ?", list(TICKERS.keys()), default=["S&P 500 (USA)", "CAC 40 (France)"])
-    
+selected_indices = st.multiselect("Quels indices voulez-vous afficher ?", list(TICKERS.keys()), default=["🇺🇸 Apple", "🇫🇷 Air Liquide"])    
+  
     if selected_indices:
         cols = st.columns(len(selected_indices))
         fig = go.Figure()
