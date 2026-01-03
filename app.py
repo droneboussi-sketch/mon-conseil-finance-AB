@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 # CONFIGURATION DE LA PAGE
 # -----------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Investir Sereinement - Dashboard Famille",
+    page_title="BoussiBroke Investissement ",
     page_icon="📈",
     layout="wide"
 )
@@ -33,8 +33,8 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("📈 Dashboard d'Investissement Familial")
-st.markdown("Bienvenue ! Ce tableau de bord est conçu pour vous aider à visualiser l'évolution des marchés et planifier vos investissements long terme.")
+st.title("📈 BoussiBroke Investissement")
+st.markdown("Bienvenue ! Voici les conseils d'un amateur boursier qui fait ça sur son temps libre.")
 st.markdown("---")
 
 # -----------------------------------------------------------------------------
@@ -42,16 +42,37 @@ st.markdown("---")
 # -----------------------------------------------------------------------------
 
 TICKERS = {
-    "S&P 500 (USA)": "^GSPC",
-    "MSCI World (Monde)": "URTH", 
-    "NASDAQ (Tech)": "^IXIC",
-    "CAC 40 (France)": "^FCHI",
-    "Bitcoin (Crypto)": "BTC-USD"
+   "🇺🇸 Nasdaq 100": "^NDX",
+    "🇺🇸 Apple": "AAPL",
+    "🇺🇸 Microsoft": "MSFT",
+    "🇺🇸 Berkshire Hathaway B": "BRK-B",
+    "🇺🇸 Take-Two Interactive": "TTWO",
+    "🇺🇸 Dow Jones Ind.": "^DJI",
+    "🇺🇸 Nasdaq Levier x3 (TQQQ)": "TQQQ",
+    "🌍 MSCI World ex-USA": "ACWX",
+    "🇫🇷 Air Liquide": "AI.PA",
+    "🇫🇷 Saint-Gobain": "SGO.PA",
+    "🇫🇷 Véolia": "VIE.PA",
+    "🇮🇳 MSCI India (Amundi)": "CIN.PA",
+    "🇬🇧 Burberry Group": "BRBY.L",
+    "🇪🇺 Future of Defense": "NATO.PA" 
 }
 
 STRATEGY_ALLOCATION = {
-    "Actions (MSCI World)": {"ticker": "URTH", "poids": 0.8},
-    "Obligations (US Agg)": {"ticker": "AGG", "poids": 0.2}
+    "Nasdaq 100": {"ticker": "CNDX.L", "poids": 0.07},
+    "Berkshire": {"ticker": "BRK-B", "poids": 0.07},
+    "Take-Two": {"ticker": "TTWO", "poids": 0.07},
+    "St Gobain": {"ticker": "SGO.PA", "poids": 0.07},
+    "Burberry": {"ticker": "BRBY.L", "poids": 0.07},
+    "India": {"ticker": "CIN.PA", "poids": 0.07},
+    "Apple": {"ticker": "AAPL", "poids": 0.07},
+    "Dow Jones": {"ticker": "DIA", "poids": 0.07},
+    "Microsoft": {"ticker": "MSFT", "poids": 0.07},
+    "Defense": {"ticker": "NATO.PA", "poids": 0.07},
+    "Air Liquide": {"ticker": "AI.PA", "poids": 0.07},
+    "Nasdaq x3": {"ticker": "TQQQ", "poids": 0.07},
+    "Véolia": {"ticker": "VIE.PA", "poids": 0.07},
+    "World ex-USA": {"ticker": "ACWX", "poids": 0.09}
 }
 
 # -----------------------------------------------------------------------------
