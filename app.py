@@ -6,7 +6,7 @@ import numpy as np
 from datetime import datetime
 
 # -----------------------------------------------------------------------------
-# 1. CONFIGURATION DE LA PAGE & STYLE (CORRIGÉ)
+# 1. CONFIGURATION DE LA PAGE & STYLE
 # -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="BoussiBroke Investissement",
@@ -14,13 +14,12 @@ st.set_page_config(
     layout="wide"
 )
 
-# Correction du CSS : On ajoute bien 'unsafe_allow_html=True' pour cacher le code
+# Correction du CSS
 st.markdown("""
 <style>
     .main { background-color: #f5f5f5; }
     h1 { color: #2c3e50; }
     
-    /* Cartes (Metrics) */
     div[data-testid="stMetric"] {
         background-color: #ffffff;
         padding: 15px;
@@ -31,7 +30,6 @@ st.markdown("""
     div[data-testid="stMetric"] label { color: #000000 !important; }
     div[data-testid="stMetric"] div[data-testid="stMetricValue"] { color: #000000 !important; }
     
-    /* STYLE DES ACTUALITÉS */
     .news-card {
         background-color: white;
         padding: 10px;
@@ -48,20 +46,13 @@ st.markdown("""
         display: block;
         margin-bottom: 4px;
     }
-    a.news-link:hover {
-        color: #00CC96;
-    }
-    .news-meta {
-        font-size: 11px;
-        color: #888;
-        display: flex;
-        justify-content: space-between;
-    }
+    a.news-link:hover { color: #00CC96; }
+    .news-meta { font-size: 11px; color: #888; display: flex; justify-content: space-between; }
 </style>
 """, unsafe_allow_html=True)
 
 st.title("📈 BoussiBroke Investissement")
-st.markdown("Bienvenue ! Voici les conseils d'un amateur boursier. Suivez les cours, simulez votre futur et restez informé des grandes tendances.")
+st.markdown("Bienvenue ! Données financières ajustées (dividendes inclus) et connectées en direct.")
 st.markdown("---")
 
 # -----------------------------------------------------------------------------
@@ -118,21 +109,22 @@ DEFAULT_PLAN = [
 ]
 
 # -----------------------------------------------------------------------------
-# 3. FONCTIONS UTILITAIRES
+# 3. FONCTIONS UTILITAIRES (OPTIMISÉES PRÉCISION)
 # -----------------------------------------------------------------------------
 
-@st.cache_data(ttl=3600)
+# Cache réduit à 600s (10 min) pour avoir des données fraiches sans bloquer l'API
+@st.cache_data(ttl=600)
 def get_stock_data(ticker_symbol, period="5y"):
     try:
         stock = yf.Ticker(ticker_symbol)
-        history = stock.history(period=period)
+        # auto_adjust=True permet d'avoir le cours ajusté des dividendes et splits
+        history = stock.history(period=period, auto_adjust=True)
         if history.empty: return None
         return history
     except: return None
 
-@st.cache_data(ttl=900) 
+@st.cache_data(ttl=300) # News très fraiches (5 min)
 def get_market_news():
-    """Récupère et mélange les news de différents secteurs."""
     news_list = []
     tickers_news = ["^FCHI", "^GSPC", "EURUSD=X", "CL=F"]
     try:
@@ -149,12 +141,11 @@ def get_market_news():
                         news_list.append({'title': title, 'link': link, 'publisher': publisher, 'timestamp': timestamp})
         news_list.sort(key=lambda x: x['timestamp'], reverse=True)
         return news_list[:8] 
-    except:
-        return []
+    except: return []
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=600)
 def compute_backtest_robust(plan_df, years=5):
-    # Poids
+    """Backtest utilisant Adjusted Close pour la vraie performance."""
     plan_df["Budget_Ligne"] = plan_df["Montant (€)"] * plan_df["Fréquence"].map(FREQ_MAP).fillna(1.0)
     total_budget = plan_df["Budget_Ligne"].sum()
     if total_budget == 0: return None
@@ -164,15 +155,19 @@ def compute_backtest_robust(plan_df, years=5):
     tickers_api = list(set(tickers + ["EURUSD=X", "EURGBP=X"]))
 
     try:
-        raw_data = yf.download(tickers_api, period=f"{years}y", progress=False)
+        # auto_adjust=True est CRUCIAL pour la justesse historique (dividendes inclus)
+        raw_data = yf.download(tickers_api, period=f"{years}y", progress=False, auto_adjust=True)
+        
+        # Gestion colonne
         if isinstance(raw_data.columns, pd.MultiIndex):
-            try:
-                if 'Close' in raw_data.columns.get_level_values(0): data = raw_data['Close']
-                elif 'Adj Close' in raw_data.columns.get_level_values(0): data = raw_data['Adj Close']
-                else: data = raw_data.droplevel(0, axis=1) 
-            except: data = raw_data
+            # Comme auto_adjust=True, yfinance renvoie souvent directement 'Close' qui est déjà ajusté
+            # ou parfois 'Adj Close' explicite.
+            if 'Close' in raw_data.columns.get_level_values(0): data = raw_data['Close']
+            elif 'Adj Close' in raw_data.columns.get_level_values(0): data = raw_data['Adj Close']
+            else: data = raw_data.droplevel(0, axis=1)
         else:
             data = raw_data['Close'] if 'Close' in raw_data else raw_data
+        
         data = data.ffill()
     except: return None
 
@@ -184,6 +179,7 @@ def compute_backtest_robust(plan_df, years=5):
         ticker = row["Ticker"]
         weight = row["Poids"]
         currency = CURRENCY_MAP.get(ticker, "EUR")
+
         if ticker in data.columns:
             series = data[ticker].copy()
             if currency == "USD" and "EURUSD=X" in data.columns: series = series / data["EURUSD=X"]
@@ -254,8 +250,7 @@ if news_data:
             unsafe_allow_html=True
         )
 else:
-    st.sidebar.caption("Chargement des actualités...")
-    
+    st.sidebar.caption("Actualisation...")
 st.sidebar.markdown("---")
 
 # -----------------------------------------------------------------------------
@@ -263,6 +258,11 @@ st.sidebar.markdown("---")
 # -----------------------------------------------------------------------------
 if page == "Suivi des Marchés":
     st.header("📊 Suivi des Cours en Direct")
+    
+    # Bouton pour forcer le rafraichissement
+    if st.button("🔄 Actualiser les données maintenant"):
+        st.cache_data.clear()
+        
     selected_indices = st.multiselect("Sélectionner les actifs :", list(TICKERS_TRACKER.keys()), default=["🇺🇸 Apple", "🇫🇷 Air Liquide"])
     
     if selected_indices:
@@ -282,7 +282,7 @@ if page == "Suivi des Marchés":
                 normalized = (data['Close'] / base_val) * 100
                 fig.add_trace(go.Scatter(x=data.index, y=normalized, name=name))
         
-        fig.update_layout(height=500, title="Comparaison Base 100", yaxis_title="Base 100")
+        fig.update_layout(height=500, title="Comparaison Base 100 (Dividendes inclus)", yaxis_title="Base 100")
         st.plotly_chart(fig, use_container_width=True)
 
 # -----------------------------------------------------------------------------
@@ -328,27 +328,23 @@ elif page == "Simulateur Futur":
         st.dataframe(df_proj.style.format({"Total Versé (€)": "{:,.0f} €", "Valeur Estimée (€)": "{:,.0f} €", "Plus-Value (€)": "{:+,.0f} €"}), use_container_width=True, hide_index=True)
 
 # -----------------------------------------------------------------------------
-# 7. PAGE : BACKTEST (MODIFIÉ S&P500)
+# 7. PAGE : BACKTEST (S&P500 + ADJUSTED CLOSE)
 # -----------------------------------------------------------------------------
 elif page == "🔙 Backtest & Performance":
     st.header("⏳ Voyage dans le temps (Backtest)")
     st.markdown("Simulation basée sur votre panier actuel (BoussiBroke) vs **S&P 500**.")
-    st.info("ℹ️ Le graphique démarre automatiquement à la date de l'action la plus récente de votre portefeuille.")
+    st.info("ℹ️ Performance 'Total Return' (Dividendes réinvestis).")
 
-    with st.spinner("Récupération et alignement des données historiques..."):
+    with st.spinner("Récupération des données ajustées (Dividendes inclus)..."):
         df_bt = pd.DataFrame(DEFAULT_PLAN)
         portfolio_curve = compute_backtest_robust(df_bt, years=5)
         
-        # Benchmark S&P 500 (^GSPC) au lieu du CAC40 (^FCHI)
+        # Benchmark S&P 500 Ajusté
         sp500_raw = get_stock_data("^GSPC", period="5y")
         
         if portfolio_curve is not None and sp500_raw is not None:
-            # === CLEAN TZ (Correctif Timezone) ===
-            if portfolio_curve.index.tz is not None:
-                portfolio_curve.index = portfolio_curve.index.tz_localize(None)
-            if sp500_raw.index.tz is not None:
-                sp500_raw.index = sp500_raw.index.tz_localize(None)
-            # =====================================
+            if portfolio_curve.index.tz is not None: portfolio_curve.index = portfolio_curve.index.tz_localize(None)
+            if sp500_raw.index.tz is not None: sp500_raw.index = sp500_raw.index.tz_localize(None)
 
             start_date = portfolio_curve.index[0]
             sp500_aligned = sp500_raw['Close'][start_date:]
@@ -368,7 +364,5 @@ elif page == "🔙 Backtest & Performance":
                 fig.add_trace(go.Scatter(x=sp500_norm.index, y=sp500_norm, name='S&P 500', line=dict(color='gray', dash='dot')))
                 fig.update_layout(title="Performance Historique (Base 100)", yaxis_title="Base 100")
                 st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.error("Erreur alignement dates S&P 500.")
-        else:
-            st.error("Impossible de construire le backtest. Données manquantes.")
+            else: st.error("Erreur alignement dates.")
+        else: st.error("Impossible de construire le backtest. Données manquantes.")
