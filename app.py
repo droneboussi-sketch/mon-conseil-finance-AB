@@ -2,7 +2,6 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import plotly.graph_objects as go
-import plotly.express as px
 import numpy as np
 from datetime import datetime
 
@@ -15,7 +14,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Titre principal et CSS personnalisé
+# Titre principal et CSS personnalisé (CORRIGÉ)
 st.markdown("""
 <style>
     .main {
@@ -38,46 +37,51 @@ st.markdown("Bienvenue ! Voici les conseils d'un amateur boursier qui fait ça s
 st.markdown("---")
 
 # -----------------------------------------------------------------------------
-# DONNÉES & CONFIGURATION
+# DONNÉES : TON PLAN D'INVESTISSEMENT
 # -----------------------------------------------------------------------------
 
-TICKERS = {
-    "🇺🇸 Nasdaq 100 (iShares USD)": "CNDX.L", 
+# Liste pour le Tracker (Affichage des cours)
+TICKERS_TRACKER = {
+    "🇺🇸 Nasdaq 100 (iShares)": "CNDX.L", 
     "🇺🇸 Berkshire Hathaway B": "BRK-B",
     "🇺🇸 Take-Two Interactive": "TTWO",
     "🇫🇷 Saint-Gobain": "SGO.PA",
     "🇬🇧 Burberry Group": "BRBY.L",
     "🇮🇳 MSCI India (Amundi)": "CIN.PA",
     "🇺🇸 Apple": "AAPL",
-    "🇺🇸 Dow Jones Ind. (iShares)": "DIA",
+    "🇺🇸 Dow Jones Ind.": "DIA",
     "🇺🇸 Microsoft": "MSFT",
-    "🇪🇺 Future of Defense (HANetf)": "NATO.PA",
+    "🇪🇺 Future of Defense": "NATO.PA",
     "🇫🇷 Air Liquide": "AI.PA",
-    "🇺🇸 Nasdaq Levier x3 (TQQQ)": "TQQQ",
+    "🇺🇸 Nasdaq Levier x3": "TQQQ",
     "🇫🇷 Véolia": "VIE.PA",
-    "🌍 World ex-USA (Xtrackers)": "ACWX"
+    "🌍 World ex-USA": "ACWX"
 }
 
-# Panier complet "BoussiBroke" pour la simulation
-STRATEGY_ALLOCATION = {
-    "Nasdaq 100": {"ticker": "CNDX.L", "poids": 0.07},
-    "Berkshire": {"ticker": "BRK-B", "poids": 0.07},
-    "Take-Two": {"ticker": "TTWO", "poids": 0.07},
-    "St Gobain": {"ticker": "SGO.PA", "poids": 0.07},
-    "Burberry": {"ticker": "BRBY.L", "poids": 0.07},
-    "India": {"ticker": "CIN.PA", "poids": 0.07},
-    "Apple": {"ticker": "AAPL", "poids": 0.07},
-    "Dow Jones": {"ticker": "DIA", "poids": 0.07},
-    "Microsoft": {"ticker": "MSFT", "poids": 0.07},
-    "Defense": {"ticker": "NATO.PA", "poids": 0.07},
-    "Air Liquide": {"ticker": "AI.PA", "poids": 0.07},
-    "Nasdaq x3": {"ticker": "TQQQ", "poids": 0.07},
-    "Véolia": {"ticker": "VIE.PA", "poids": 0.07},
-    "World ex-USA": {"ticker": "ACWX", "poids": 0.09}
-}
+# Ton Plan d'Achat (Ticker, Quantité par mois approximative, Devise)
+# Calcul fréquence : 1/semaine = 4.33/mois. 1/2semaines = 2.16/mois.
+MY_PLAN = [
+    {"nom": "Nasdaq 100", "ticker": "CNDX.L", "qt_mois": 4.33, "devise": "USD"},  # 1/semaine
+    {"nom": "Berkshire B", "ticker": "BRK-B", "qt_mois": 8.66, "devise": "USD"},   # 2/semaine
+    {"nom": "Take-Two", "ticker": "TTWO", "qt_mois": 13.0, "devise": "USD"},       # 3/semaine
+    {"nom": "Saint-Gobain", "ticker": "SGO.PA", "qt_mois": 4.33, "devise": "EUR"}, # 2 toutes les 2 semaines (~4/mois)
+    {"nom": "Burberry", "ticker": "BRBY.L", "qt_mois": 4.33, "devise": "GBP"},     # 1/semaine
+    {"nom": "MSCI India", "ticker": "CIN.PA", "qt_mois": 2.16, "devise": "EUR"},   # 1 toutes les 2 semaines
+    {"nom": "Apple", "ticker": "AAPL", "qt_mois": 4.33, "devise": "USD"},          # 1/semaine
+    {"nom": "Dow Jones", "ticker": "DIA", "qt_mois": 4.33, "devise": "USD"},       # 2 toutes les 2 semaines
+    {"nom": "Microsoft", "ticker": "MSFT", "qt_mois": 2.0, "devise": "USD"},       # 1 deux fois par mois
+    {"nom": "Future Defense", "ticker": "NATO.PA", "qt_mois": 1.0, "devise": "EUR"}, # Supposé 1/mois
+    {"nom": "Air Liquide", "ticker": "AI.PA", "qt_mois": 1.0, "devise": "EUR"},    # 1/mois
+    {"nom": "Nasdaq x3", "ticker": "TQQQ", "qt_mois": 2.0, "devise": "USD"},       # 2/mois
+    {"nom": "Véolia", "ticker": "VIE.PA", "qt_mois": 4.0, "devise": "EUR"},        # 2 deux fois par mois
+    {"nom": "World ex-USA", "ticker": "ACWX", "qt_mois": 3.0, "devise": "USD"},    # 3 par mois
+]
+
+# Taux de change fixes (Approximation pour la rapidité)
+FX_RATES = {"EUR": 1.0, "USD": 0.95, "GBP": 1.20} 
 
 # -----------------------------------------------------------------------------
-# FONCTIONS UTILITAIRES
+# FONCTIONS
 # -----------------------------------------------------------------------------
 
 @st.cache_data(ttl=3600)
@@ -85,15 +89,24 @@ def get_stock_data(ticker_symbol, period="5y"):
     try:
         stock = yf.Ticker(ticker_symbol)
         history = stock.history(period=period)
-        if history.empty:
-            return None
+        if history.empty: return None
         return history
-    except Exception as e:
-        return None
+    except: return None
 
-def calculate_dca(initial, periodic, frequency, rate, years):
-    periods_per_year = 52 if frequency == "Hebdomadaire" else 365
-    rate_periodic = (1 + rate/100)**(1/periods_per_year) - 1
+@st.cache_data(ttl=3600)
+def get_current_price(ticker):
+    """Récupère le dernier prix pour le calcul du plan."""
+    try:
+        data = yf.Ticker(ticker).history(period="1d")
+        if not data.empty:
+            return data['Close'].iloc[-1]
+        return 0.0
+    except:
+        return 0.0
+
+def calculate_dca(initial, periodic, years, rate):
+    months = years * 12
+    rate_periodic = (1 + rate/100)**(1/12) - 1
     
     data = []
     current_portfolio = initial
@@ -102,11 +115,11 @@ def calculate_dca(initial, periodic, frequency, rate, years):
     for year in range(years + 1):
         data.append({
             "Année": year,
-            "Total Investi (Cash)": round(total_invested, 2),
-            "Valeur Portefeuille (Intérêts composés)": round(current_portfolio, 2)
+            "Total Investi": round(total_invested, 2),
+            "Valeur Portefeuille": round(current_portfolio, 2)
         })
         if year < years:
-            for _ in range(periods_per_year):
+            for _ in range(12):
                 current_portfolio = current_portfolio * (1 + rate_periodic) + periodic
                 total_invested += periodic
                 
@@ -116,39 +129,38 @@ def calculate_dca(initial, periodic, frequency, rate, years):
 # SIDEBAR
 # -----------------------------------------------------------------------------
 st.sidebar.header("Navigation")
-page = st.sidebar.radio("Aller vers :", ["Suivi des Marchés", "Simulateur Plan (DCA)", "Ma Stratégie vs Réalité"])
+# On enlève le 3ème onglet ici
+page = st.sidebar.radio("Aller vers :", ["Suivi des Marchés", "Simulateur Plan BoussiBroke"])
 
 st.sidebar.markdown("---")
 st.sidebar.header("📰 Actualités Éco")
 
 news_items = [
     {"titre": "La FED annonce une pause sur les taux directeurs", "impact": "Positif"},
-    {"titre": "Le secteur technologique tire le S&P500 vers le haut", "impact": "Positif"},
+    {"titre": "Le secteur Tech tire les marchés vers le haut", "impact": "Positif"},
     {"titre": "Inflation en zone Euro : chiffres rassurants", "impact": "Neutre"},
-    {"titre": "Nouvelles régulations sur les crypto-monnaies en Asie", "impact": "Volatil"},
-    {"titre": "Les résultats trimestriels des GAFAM dépassent les attentes", "impact": "Positif"},
+    {"titre": "Volatilité sur les marchés asiatiques", "impact": "Volatil"},
 ]
 
 for news in news_items:
     color = "green" if news['impact'] == "Positif" else "orange" if news['impact'] == "Neutre" else "red"
     st.sidebar.markdown(f"**{news['titre']}**")
-    st.sidebar.markdown(f":{color}[Impact estimé: {news['impact']}]")
+    st.sidebar.markdown(f":{color}[Impact: {news['impact']}]")
     st.sidebar.markdown("---")
 
 # -----------------------------------------------------------------------------
 # PAGE 1 : SUIVI DES MARCHÉS
 # -----------------------------------------------------------------------------
 if page == "Suivi des Marchés":
-    st.header("📊 Suivi des Marchés Clés")
-    # C'est ici que j'ai corrigé les valeurs par défaut pour qu'elles matchent ta liste
-    selected_indices = st.multiselect("Quels indices voulez-vous afficher ?", list(TICKERS.keys()), default=["🇺🇸 Apple", "🇫🇷 Air Liquide"])
+    st.header("📊 Suivi des Cours")
+    selected_indices = st.multiselect("Sélectionner les actifs :", list(TICKERS_TRACKER.keys()), default=["🇺🇸 Apple", "🇫🇷 Air Liquide"])
     
     if selected_indices:
         cols = st.columns(len(selected_indices))
         fig = go.Figure()
 
         for idx, name in enumerate(selected_indices):
-            ticker = TICKERS[name]
+            ticker = TICKERS_TRACKER[name]
             data = get_stock_data(ticker)
             
             if data is not None:
@@ -156,104 +168,88 @@ if page == "Suivi des Marchés":
                 prev_price = data['Close'].iloc[-2]
                 day_change = ((last_price - prev_price) / prev_price) * 100
                 
-                # Gestion sécurisée du début d'année
                 try:
                     start_year_price = data[data.index.year == datetime.now().year]['Close'].iloc[0]
                     ytd_change = ((last_price - start_year_price) / start_year_price) * 100
-                except:
-                    ytd_change = 0.0
+                except: ytd_change = 0.0
 
                 with cols[idx]:
-                    st.metric(label=name, value=f"{last_price:,.2f}", delta=f"{day_change:.2f}% (Jour)")
+                    st.metric(label=name, value=f"{last_price:,.2f}", delta=f"{day_change:.2f}%")
                     st.caption(f"YTD: {ytd_change:+.2f}%")
 
                 if len(selected_indices) > 1:
-                    base_value = data['Close'].iloc[0]
-                    normalized_data = (data['Close'] / base_value) * 100
-                    fig.add_trace(go.Scatter(x=data.index, y=normalized_data, mode='lines', name=name))
-                    y_axis_title = "Performance Base 100"
+                    base_val = data['Close'].iloc[0]
+                    normalized = (data['Close'] / base_val) * 100
+                    fig.add_trace(go.Scatter(x=data.index, y=normalized, name=name))
+                    y_axis_title = "Base 100"
                 else:
-                    fig.add_trace(go.Scatter(x=data.index, y=data['Close'], mode='lines', name=name))
+                    fig.add_trace(go.Scatter(x=data.index, y=data['Close'], name=name))
                     y_axis_title = "Prix"
 
-        fig.update_layout(title="Évolution Comparée (5 Ans)", xaxis_title="Date", yaxis_title=y_axis_title, height=500)
+        fig.update_layout(title="Comparaison (5 ans)", yaxis_title=y_axis_title, height=500)
         st.plotly_chart(fig, use_container_width=True)
-        if len(selected_indices) > 1:
-            st.info("ℹ️ Le graphique est en 'Base 100' pour comparer les performances.")
 
 # -----------------------------------------------------------------------------
-# PAGE 2 : SIMULATEUR PLAN (DCA)
+# PAGE 2 : SIMULATEUR PLAN BOUSSIBROKE
 # -----------------------------------------------------------------------------
-elif page == "Simulateur Plan (DCA)":
-    st.header("🌱 La puissance des intérêts composés")
+elif page == "Simulateur Plan BoussiBroke":
+    st.header("🚀 Projection du Plan d'Achat")
+    st.markdown("Cette page calcule automatiquement le coût mensuel de ton plan d'achat (Apple 1/sem, etc.) au prix d'aujourd'hui et projette la richesse future.")
+
+    # 1. Calcul du coût mensuel du plan
+    total_monthly_investment = 0
+    details_text = ""
+
+    # On utilise un expander pour pas prendre toute la place si on veut voir les détails
+    with st.expander("Voir le détail du coût mensuel calculé"):
+        st.write("Calcul basé sur les derniers cours de clôture :")
+        for item in MY_PLAN:
+            price = get_current_price(item["ticker"])
+            
+            # Correction spécifique pour Londres (souvent en pence, il faut diviser par 100)
+            if item["ticker"].endswith(".L"):
+                price = price / 100
+
+            cost_native = price * item["qt_mois"]
+            cost_eur = cost_native * FX_RATES.get(item["devise"], 1.0)
+            
+            total_monthly_investment += cost_eur
+            st.write(f"- **{item['nom']}** ({item['qt_mois']:.1f}/mois) : Prix {price:.2f} {item['devise']} ➡️ Coût mensuel : {cost_eur:.2f} €")
+
+    st.markdown("---")
+    
+    # 2. Paramètres de simulation
     col1, col2 = st.columns([1, 2])
-
+    
     with col1:
         st.subheader("Paramètres")
-        initial_amount = st.number_input("Montant initial (€)", min_value=0, value=1000, step=100)
-        periodic_amount = st.number_input("Montant périodique (€)", min_value=0, value=50, step=10)
-        frequency = st.selectbox("Fréquence", ["Hebdomadaire", "Journalier"])
-        rate = st.slider("Rendement annuel (%)", 1, 15, 7)
-        duration = st.slider("Durée (Années)", 5, 40, 20)
-
-    with col2:
-        df_dca = calculate_dca(initial_amount, periodic_amount, frequency, rate, duration)
-        final_val = df_dca.iloc[-1]["Valeur Portefeuille (Intérêts composés)"]
-        total_inv = df_dca.iloc[-1]["Total Investi (Cash)"]
-        gain = final_val - total_inv
+        st.info(f"💰 **Investissement Mensuel Calculé : {int(total_monthly_investment)} €**")
         
-        st.subheader("Résultats")
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Capital Final", f"{final_val:,.0f} €")
-        c2.metric("Total Versé", f"{total_inv:,.0f} €")
-        c3.metric("Intérêts Gagnés", f"{gain:,.0f} €")
+        # On laisse l'utilisateur ajuster si besoin, mais par défaut c'est le calcul
+        monthly_inv = st.number_input("Montant investi par mois (€)", value=int(total_monthly_investment))
+        initial_inv = st.number_input("Capital de départ (€)", value=0)
+        rate = st.slider("Rendement annuel espéré (%)", 5, 15, 9) # 9% car beaucoup d'actions US/Tech
+        years = st.slider("Durée (Années)", 5, 30, 15)
 
-        fig_dca = go.Figure()
-        fig_dca.add_trace(go.Scatter(x=df_dca["Année"], y=df_dca["Valeur Portefeuille (Intérêts composés)"], fill='tozeroy', name='Portefeuille'))
-        fig_dca.add_trace(go.Scatter(x=df_dca["Année"], y=df_dca["Total Investi (Cash)"], fill='tozeroy', name='Cash Investi'))
-        st.plotly_chart(fig_dca, use_container_width=True)
+    # 3. Calculs et Graphique
+    with col2:
+        df_sim = calculate_dca(initial_inv, monthly_inv, years, rate)
+        
+        final_val = df_sim.iloc[-1]["Valeur Portefeuille"]
+        total_put = df_sim.iloc[-1]["Total Investi"]
+        gain = final_val - total_put
+        
+        st.subheader("Résultats Futurs")
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Capital Final", f"{final_val:,.0f} €")
+        m2.metric("Total Versé", f"{total_put:,.0f} €")
+        m3.metric("Plus-Value", f"{gain:,.0f} €", delta=f"x {final_val/total_put:.2f}")
 
-# -----------------------------------------------------------------------------
-# PAGE 3 : MA STRATÉGIE VS RÉALITÉ
-# -----------------------------------------------------------------------------
-elif page == "Ma Stratégie vs Réalité":
-    st.header("🛡️ Test du Panier BoussiBroke")
-    st.markdown("On simule ici si vous aviez investi dans toutes vos valeurs favorites il y a 1 an.")
-    invest_amount = st.number_input("Montant à simuler (€)", value=10000)
-    
-    if st.button("Lancer la simulation"):
-        with st.spinner("Calcul des performances..."):
-            try:
-                combined = pd.DataFrame()
-                
-                # On boucle sur toutes les actions de la stratégie
-                for name, details in STRATEGY_ALLOCATION.items():
-                    data = get_stock_data(details["ticker"], period="1y")
-                    if data is not None and not data.empty:
-                        # Normalisation (Perf relative)
-                        perf = data['Close'] / data['Close'].iloc[0]
-                        
-                        # Pondération
-                        weighted_val = (invest_amount * details["poids"]) * perf
-                        
-                        if combined.empty:
-                            combined = pd.DataFrame(weighted_val)
-                            combined.columns = ["Valeur_Portefeuille"]
-                        else:
-                            # On ajoute au total (en gérant les index de dates)
-                            combined["Valeur_Portefeuille"] = combined["Valeur_Portefeuille"].add(weighted_val, fill_value=0)
+        fig_sim = go.Figure()
+        fig_sim.add_trace(go.Scatter(x=df_sim["Année"], y=df_sim["Valeur Portefeuille"], fill='tozeroy', name='Valeur Portefeuille', line=dict(color='#00CC96')))
+        fig_sim.add_trace(go.Scatter(x=df_sim["Année"], y=df_sim["Total Investi"], fill='tozeroy', name='Argent Sorti', line=dict(color='#636EFA')))
+        
+        fig_sim.update_layout(title=f"Projection sur {years} ans", xaxis_title="Années", yaxis_title="Montant (€)")
+        st.plotly_chart(fig_sim, use_container_width=True)
 
-                combined = combined.dropna()
-                
-                final_pf_value = combined["Valeur_Portefeuille"].iloc[-1]
-                perf_abs = final_pf_value - invest_amount
-                
-                col1, col2 = st.columns(2)
-                col1.metric("Valeur Aujourd'hui", f"{final_pf_value:,.2f} €")
-                col2.metric("Plus/Moins-value", f"{perf_abs:+.2f} €")
-                
-                fig_strat = px.line(combined, y="Valeur_Portefeuille", title="Évolution portefeuille")
-                st.plotly_chart(fig_strat, use_container_width=True)
-
-            except Exception as e:
-                st.error(f"Erreur de calcul : {e}")
+    st.warning("Note : Le montant mensuel est une estimation basée sur les prix d'aujourd'hui. Dans la réalité, si les actions montent, le coût mensuel pour acheter le même nombre d'actions augmentera aussi.")
