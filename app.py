@@ -6,7 +6,7 @@ import numpy as np
 from datetime import datetime
 
 # -----------------------------------------------------------------------------
-# 1. CONFIGURATION DE LA PAGE & STYLE
+# 1. CONFIGURATION DE LA PAGE & STYLE (CORRIGÉ)
 # -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="BoussiBroke Investissement",
@@ -14,7 +14,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# CSS : Style amélioré pour les News et correction du mode sombre/clair
+# Correction du CSS : On ajoute bien 'unsafe_allow_html=True' pour cacher le code
 st.markdown("""
 <style>
     .main { background-color: #f5f5f5; }
@@ -31,7 +31,7 @@ st.markdown("""
     div[data-testid="stMetric"] label { color: #000000 !important; }
     div[data-testid="stMetric"] div[data-testid="stMetricValue"] { color: #000000 !important; }
     
-    /* STYLE DES ACTUALITÉS (Inspiration Newsletter) */
+    /* STYLE DES ACTUALITÉS */
     .news-card {
         background-color: white;
         padding: 10px;
@@ -130,37 +130,25 @@ def get_stock_data(ticker_symbol, period="5y"):
         return history
     except: return None
 
-@st.cache_data(ttl=900) # Mise à jour toutes les 15 min
+@st.cache_data(ttl=900) 
 def get_market_news():
-    """Récupère et mélange les news de différents secteurs (France, US, Crypto, Macro)."""
+    """Récupère et mélange les news de différents secteurs."""
     news_list = []
-    # ^FCHI=CAC40, ^GSPC=S&P500, EURUSD=X (Forex), CL=F (Pétrole)
     tickers_news = ["^FCHI", "^GSPC", "EURUSD=X", "CL=F"]
-    
     try:
         for symbol in tickers_news:
             t = yf.Ticker(symbol)
             batch = t.news
             if batch:
                 for item in batch:
-                    # Extraction propre
                     title = item.get('title', '')
                     link = item.get('link', '#')
                     publisher = item.get('publisher', 'Bourse')
                     timestamp = item.get('providerPublishTime', 0)
-                    
-                    # On ne garde que si on a un titre
                     if title and not any(n['title'] == title for n in news_list):
-                        news_list.append({
-                            'title': title,
-                            'link': link,
-                            'publisher': publisher,
-                            'timestamp': timestamp
-                        })
-        
-        # On trie par date (le plus récent en premier)
+                        news_list.append({'title': title, 'link': link, 'publisher': publisher, 'timestamp': timestamp})
         news_list.sort(key=lambda x: x['timestamp'], reverse=True)
-        return news_list[:8] # On garde les 8 plus récentes
+        return news_list[:8] 
     except:
         return []
 
@@ -177,7 +165,6 @@ def compute_backtest_robust(plan_df, years=5):
 
     try:
         raw_data = yf.download(tickers_api, period=f"{years}y", progress=False)
-        # Gestion multi-index yfinance
         if isinstance(raw_data.columns, pd.MultiIndex):
             try:
                 if 'Close' in raw_data.columns.get_level_values(0): data = raw_data['Close']
@@ -245,20 +232,16 @@ def calculate_dca_curve(initial, monthly_amount, years, rate):
     return pd.DataFrame(data)
 
 # -----------------------------------------------------------------------------
-# 4. INTERFACE SIDEBAR (NEWSFEED AMÉLIORÉ)
+# 4. INTERFACE SIDEBAR
 # -----------------------------------------------------------------------------
 st.sidebar.header("Navigation")
 page = st.sidebar.radio("Menu :", ["Suivi des Marchés", "Simulateur Futur", "🔙 Backtest & Performance"])
 st.sidebar.markdown("---")
 st.sidebar.header("📰 Les Échos des Marchés")
 
-# Chargement des news en direct
 news_data = get_market_news()
-
 if news_data:
     for news in news_data:
-        # On nettoie le timestamp pour avoir une heure lisible si possible
-        # (Yahoo donne un timestamp brut)
         st.sidebar.markdown(
             f"""
             <div class="news-card">
@@ -340,52 +323,52 @@ elif page == "Simulateur Futur":
     st.subheader("📅 Détail des gains")
     df_proj = calculate_projection_table(initial_inv, monthly_inv, rate)
     try:
-        # Style coloré si matplotlib dispo
         st.dataframe(df_proj.style.format({"Total Versé (€)": "{:,.0f} €", "Valeur Estimée (€)": "{:,.0f} €", "Plus-Value (€)": "{:+,.0f} €"}).background_gradient(subset=["Plus-Value (€)"], cmap="Greens"), use_container_width=True, hide_index=True)
     except:
         st.dataframe(df_proj.style.format({"Total Versé (€)": "{:,.0f} €", "Valeur Estimée (€)": "{:,.0f} €", "Plus-Value (€)": "{:+,.0f} €"}), use_container_width=True, hide_index=True)
 
 # -----------------------------------------------------------------------------
-# 7. PAGE : BACKTEST (ROBUSTE + CLEAN TZ)
+# 7. PAGE : BACKTEST (MODIFIÉ S&P500)
 # -----------------------------------------------------------------------------
 elif page == "🔙 Backtest & Performance":
     st.header("⏳ Voyage dans le temps (Backtest)")
-    st.markdown("Simulation basée sur votre panier actuel (BoussiBroke) vs CAC 40.")
+    st.markdown("Simulation basée sur votre panier actuel (BoussiBroke) vs **S&P 500**.")
     st.info("ℹ️ Le graphique démarre automatiquement à la date de l'action la plus récente de votre portefeuille.")
 
     with st.spinner("Récupération et alignement des données historiques..."):
         df_bt = pd.DataFrame(DEFAULT_PLAN)
         portfolio_curve = compute_backtest_robust(df_bt, years=5)
         
-        cac40_raw = get_stock_data("^FCHI", period="5y")
+        # Benchmark S&P 500 (^GSPC) au lieu du CAC40 (^FCHI)
+        sp500_raw = get_stock_data("^GSPC", period="5y")
         
-        if portfolio_curve is not None and cac40_raw is not None:
+        if portfolio_curve is not None and sp500_raw is not None:
             # === CLEAN TZ (Correctif Timezone) ===
             if portfolio_curve.index.tz is not None:
                 portfolio_curve.index = portfolio_curve.index.tz_localize(None)
-            if cac40_raw.index.tz is not None:
-                cac40_raw.index = cac40_raw.index.tz_localize(None)
+            if sp500_raw.index.tz is not None:
+                sp500_raw.index = sp500_raw.index.tz_localize(None)
             # =====================================
 
             start_date = portfolio_curve.index[0]
-            cac40_aligned = cac40_raw['Close'][start_date:]
+            sp500_aligned = sp500_raw['Close'][start_date:]
             
-            if not cac40_aligned.empty:
-                cac40_norm = (cac40_aligned / cac40_aligned.iloc[0]) * 100
+            if not sp500_aligned.empty:
+                sp500_norm = (sp500_aligned / sp500_aligned.iloc[0]) * 100
                 
                 perf_pf = portfolio_curve.iloc[-1] - 100
-                perf_cac = cac40_norm.iloc[-1] - 100
+                perf_sp500 = sp500_norm.iloc[-1] - 100
                 
                 k1, k2 = st.columns(2)
                 k1.metric("BoussiBroke", f"+{perf_pf:.1f}%")
-                k2.metric("CAC 40", f"+{perf_cac:.1f}%")
+                k2.metric("S&P 500", f"+{perf_sp500:.1f}%")
                 
                 fig = go.Figure()
                 fig.add_trace(go.Scatter(x=portfolio_curve.index, y=portfolio_curve, name='BoussiBroke', line=dict(color='#00CC96', width=3)))
-                fig.add_trace(go.Scatter(x=cac40_norm.index, y=cac40_norm, name='CAC 40', line=dict(color='gray', dash='dot')))
+                fig.add_trace(go.Scatter(x=sp500_norm.index, y=sp500_norm, name='S&P 500', line=dict(color='gray', dash='dot')))
                 fig.update_layout(title="Performance Historique (Base 100)", yaxis_title="Base 100")
                 st.plotly_chart(fig, use_container_width=True)
             else:
-                st.error("Erreur alignement dates CAC40.")
+                st.error("Erreur alignement dates S&P 500.")
         else:
             st.error("Impossible de construire le backtest. Données manquantes.")
