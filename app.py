@@ -309,13 +309,13 @@ elif page == "Simulateur Interactif":
         color = 'green' if val > 0 else 'red'
         return f'color: {color}'
 
-    # Affichage avec Pandas Styler (plus joli que st.table simple)
+    # Affichage simple sans dégradé de couleur (Pour éviter l'erreur matplotlib)
     st.dataframe(
         df_proj.style.format({
             "Total Versé (€)": "{:,.0f} €", 
             "Valeur Estimée (€)": "{:,.0f} €", 
             "Plus-Value (€)": "{:+,.0f} €"
-        }).background_gradient(subset=["Plus-Value (€)"], cmap="Greens"),
+        }),
         use_container_width=True,
         hide_index=True,
         height=500 
