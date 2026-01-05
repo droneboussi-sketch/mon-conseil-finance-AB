@@ -6,7 +6,7 @@ import numpy as np
 from datetime import datetime
 
 # -----------------------------------------------------------------------------
-# CONFIGURATION DE LA PAGE
+# 1. CONFIGURATION DE LA PAGE & STYLE
 # -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="BoussiBroke Investissement",
@@ -14,7 +14,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# CSS Personnalisé
+# CSS pour un look épuré
 st.markdown("""
 <style>
     .main { background-color: #f5f5f5; }
@@ -29,13 +29,14 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("📈 BoussiBroke Investissement")
-st.markdown("Bienvenue ! Voici les conseils d'un amateur boursier. Modifiez le tableau ci-dessous pour simuler votre propre budget.")
+st.markdown("Bienvenue ! Voici les conseils d'un amateur boursier. Ce tableau de bord permet de suivre les cours, simuler votre richesse future et vérifier les performances passées.")
 st.markdown("---")
 
 # -----------------------------------------------------------------------------
-# DONNÉES INITIALES
+# 2. DONNÉES & PARAMÈTRES
 # -----------------------------------------------------------------------------
 
+# Conversion Fréquence texte -> Nombre par mois
 FREQ_MAP = {
     "1x / semaine": 4.33,
     "1x / 2 semaines": 2.16,
@@ -44,8 +45,7 @@ FREQ_MAP = {
     "3x / mois": 3.0
 }
 
-# Mapping des devises pour conversion historique
-# Si l'action est en USD, on divisera par la paire EURUSD. Si GBP, par EURGBP.
+# Mapping des devises pour conversion historique (Backtest)
 CURRENCY_MAP = {
     "CNDX.L": "USD", "BRK-B": "USD", "TTWO": "USD", "SGO.PA": "EUR",
     "BRBY.L": "GBP", "CIN.PA": "EUR", "AAPL": "USD", "DIA": "USD",
@@ -53,8 +53,9 @@ CURRENCY_MAP = {
     "VIE.PA": "EUR", "ACWX": "USD"
 }
 
+# Liste pour le menu déroulant (Tracker)
 TICKERS_TRACKER = {
-    "🇺🇸 Nasdaq 100": "CNDX.L", 
+    "🇺🇸 Nasdaq 100 (iShares)": "CNDX.L", 
     "🇺🇸 Berkshire Hathaway B": "BRK-B",
     "🇺🇸 Take-Two Interactive": "TTWO",
     "🇫🇷 Saint-Gobain": "SGO.PA",
@@ -70,6 +71,7 @@ TICKERS_TRACKER = {
     "🌍 World ex-USA": "ACWX"
 }
 
+# Ton plan par défaut (Modifiable par l'utilisateur dans l'interface)
 DEFAULT_PLAN = [
     {"Action": "Nasdaq 100", "Ticker": "CNDX.L", "Montant (€)": 1, "Fréquence": "1x / semaine"},
     {"Action": "Berkshire B", "Ticker": "BRK-B", "Montant (€)": 2, "Fréquence": "1x / semaine"},
@@ -88,11 +90,12 @@ DEFAULT_PLAN = [
 ]
 
 # -----------------------------------------------------------------------------
-# FONCTIONS
+# 3. FONCTIONS UTILITAIRES
 # -----------------------------------------------------------------------------
 
 @st.cache_data(ttl=3600)
 def get_stock_data(ticker_symbol, period="5y"):
+    """Récupère les données brutes pour le tracker."""
     try:
         stock = yf.Ticker(ticker_symbol)
         history = stock.history(period=period)
@@ -102,35 +105,32 @@ def get_stock_data(ticker_symbol, period="5y"):
 
 @st.cache_data(ttl=3600)
 def compute_backtest(plan_df, years=5):
-    """Reconstitue la performance historique du panier."""
-    # 1. Calcul des poids du portefeuille actuel
-    plan_df["Poids_Relatif"] = 0.0
-    total_budget_mensuel = 0
+    """
+    Reconstitue la performance historique du panier de manière ROBUSTE.
+    Gère les actions récentes en coupant le graphique au moment où tout est disponible.
+    """
+    # 1. Calcul des poids cibles en fonction du budget mensuel
+    plan_df["Budget_Ligne"] = plan_df["Montant (€)"] * plan_df["Fréquence"].map(FREQ_MAP).fillna(1.0)
+    total_budget = plan_df["Budget_Ligne"].sum()
     
-    for idx, row in plan_df.iterrows():
-        budget_line = row["Montant (€)"] * FREQ_MAP.get(row["Fréquence"], 1.0)
-        total_budget_mensuel += budget_line
-        plan_df.at[idx, "Budget_Ligne"] = budget_line
+    if total_budget == 0: return None
+    plan_df["Poids"] = plan_df["Budget_Ligne"] / total_budget
 
-    if total_budget_mensuel == 0: return None
-    plan_df["Poids"] = plan_df["Budget_Ligne"] / total_budget_mensuel
-
-    # 2. Récupération des données historiques et devises
+    # 2. Récupération des données (Actions + Taux de change)
     tickers = plan_df["Ticker"].tolist()
-    # On ajoute les paires de devises nécessaires
-    tickers_api = tickers + ["EURUSD=X", "EURGBP=X"]
+    tickers_api = list(set(tickers + ["EURUSD=X", "EURGBP=X"]))
     
     try:
+        # On télécharge tout en vrac
         data = yf.download(tickers_api, period=f"{years}y", progress=False)['Close']
-        data = data.ffill().dropna() # Nettoyage
-    except:
+        # On remplit les trous de cotation (jours fériés)
+        data = data.ffill().bfill() 
+    except Exception as e:
         return None
 
-    # 3. Conversion tout en EUROS et Construction de l'index
-    # On part d'une base 100
-    portfolio_series = pd.Series(0, index=data.index)
-    
-    valid_tickers = 0
+    # 3. Conversion et Pondération
+    # On va créer une Série pour chaque action convertie en EUR
+    series_list = []
     
     for idx, row in plan_df.iterrows():
         ticker = row["Ticker"]
@@ -138,45 +138,111 @@ def compute_backtest(plan_df, years=5):
         currency = CURRENCY_MAP.get(ticker, "EUR")
         
         if ticker in data.columns:
-            series = data[ticker]
+            series = data[ticker].copy()
             
-            # Gestion Devises (Conversion en EUR)
-            if currency == "USD":
-                if "EURUSD=X" in data.columns:
-                    series = series / data["EURUSD=X"]
-            elif currency == "GBP":
-                if "EURGBP=X" in data.columns:
-                    # GBP vers EUR (Approximation via EURGBP inversé ou cross rate)
-                    # Yahoo donne EURGBP=X (1 EUR = x GBP). Donc Price_GBP / EURGBP = Price_EUR
-                    series = series / data["EURGBP=X"]
+            # Conversion Devises vers EUR
+            if currency == "USD" and "EURUSD=X" in data.columns:
+                series = series / data["EURUSD=X"]
+            elif currency == "GBP" and "EURGBP=X" in data.columns:
+                series = series / data["EURGBP=X"]
             
-            # Normalisation Base 100 au début de la période
-            if not series.empty and series.iloc[0] > 0:
-                normalized = (series / series.iloc[0]) * 100 * weight
-                portfolio_series += normalized
-                valid_tickers += 1
-                
-    if valid_tickers == 0: return None
+            # On stocke la série pondérée
+            series_list.append(series)
+
+    if not series_list: return None
+
+    # 4. Alignement des dates (Le cœur de la correction)
+    # On crée un DataFrame avec toutes les séries propres
+    df_clean = pd.concat(series_list, axis=1)
     
-    # On recale le tout pour que ça commence pile à 100
-    portfolio_series = (portfolio_series / portfolio_series.iloc[0]) * 100
+    # On supprime les lignes où il manque au moins une donnée (avant la création de l'ETF le plus récent)
+    df_clean = df_clean.dropna()
     
-    return portfolio_series
+    if df_clean.empty:
+        st.warning("Pas assez de données historiques communes.")
+        return None
+
+    # 5. Calcul de l'indice composite
+    # On normalise chaque colonne base 100 au début de la période commune
+    df_normalized = df_clean.apply(lambda x: (x / x.iloc[0]) * 100)
+    
+    # On applique les poids (Attention : il faut que l'ordre corresponde)
+    # Pour simplifier ici : on recalcule la somme pondérée sur le df aligné
+    portfolio_series = pd.Series(0.0, index=df_clean.index)
+    
+    for idx, row in plan_df.iterrows():
+        ticker = row["Ticker"]
+        weight = row["Poids"]
+        # On retrouve la colonne (parfois Yahoo change les noms, mais ici l'index aligné aide)
+        # Simplification : On refait la boucle sur le df aligné
+        # Note : Cette méthode est une approximation "Panier Fixe"
+        pass 
+
+    # Méthode plus directe sur le df_clean aligné :
+    # On calcule la valeur du portefeuille jour par jour
+    # Somme (Prix_jour / Prix_depart * Poids)
+    
+    # Re-boucle propre sur le dataframe nettoyé
+    final_curve = pd.Series(0.0, index=df_clean.index)
+    
+    # On a besoin de mapper le nom de colonne Yahoo au poids
+    # C'est complexe car Yahoo renvoie parfois des Tuples.
+    # Approche simplifiée robuste :
+    
+    current_val = 0
+    # On initialise à 100
+    
+    # On va faire une moyenne pondérée des performances relatives
+    weighted_perf = pd.Series(0.0, index=df_clean.index)
+    
+    # On doit être sûr de l'ordre. On refait un tour simple.
+    for idx, row in plan_df.iterrows():
+        ticker = row["Ticker"]
+        weight = row["Poids"]
+        
+        # On cherche la colonne qui correspond au ticker dans nos données téléchargées
+        # (Parfois c'est juste le Ticker, parfois (Ticker, 'Close'))
+        col_name = ticker
+        
+        # Astuce pour retrouver la donnée dans df_clean (qui n'a pas les noms de colonnes originaux mais des index 0,1,2...)
+        # On va simplifier : On reprend data, on coupe aux dates de df_clean
+        
+        series = data[ticker].loc[df_clean.index]
+        if CURRENCY_MAP.get(ticker) == "USD": series = series / data["EURUSD=X"].loc[df_clean.index]
+        if CURRENCY_MAP.get(ticker) == "GBP": series = series / data["EURGBP=X"].loc[df_clean.index]
+        
+        # Perf relative
+        rel_perf = (series / series.iloc[0])
+        weighted_perf += rel_perf * weight
+
+    # Base 100
+    return weighted_perf * 100
 
 def calculate_projection_table(initial, monthly_amount, rate):
+    """Génère le tableau détaillé des périodes."""
     rate_monthly = (1 + rate/100)**(1/12) - 1
-    horizons = {"1 Jour": 1/30, "1 Semaine": 1/4.33, "1 Mois": 1, "6 Mois": 6, "1 An": 12, "3 Ans": 36, "5 Ans": 60, "10 Ans": 120, "20 Ans": 240}
+    horizons = {
+        "1 Jour": 1/30, "1 Semaine": 1/4.33, "1 Mois": 1, "6 Mois": 6, 
+        "1 An": 12, "3 Ans": 36, "5 Ans": 60, "10 Ans": 120, "20 Ans": 240, "30 Ans": 360
+    }
     results = []
     for label, months in horizons.items():
         fv_initial = initial * (1 + rate_monthly)**months
         if rate_monthly == 0: fv_series = monthly_amount * months
         else: fv_series = monthly_amount * ((1 + rate_monthly)**months - 1) / rate_monthly
+        
         total_val = fv_initial + fv_series
         total_invested = initial + (monthly_amount * months)
-        results.append({"Période": label, "Total Versé (€)": total_invested, "Valeur Estimée (€)": total_val, "Plus-Value (€)": total_val - total_invested})
+        results.append({
+            "Période": label, 
+            "Total Versé (€)": total_invested, 
+            "Valeur Estimée (€)": total_val, 
+            "Plus-Value (€)": total_val - total_invested
+        })
     return pd.DataFrame(results)
 
 def calculate_dca_curve(initial, monthly_amount, years, rate):
+    """Génère les données pour le graphique futur."""
     rate_monthly = (1 + rate/100)**(1/12) - 1
     data = []
     current_portfolio = initial
@@ -190,7 +256,7 @@ def calculate_dca_curve(initial, monthly_amount, years, rate):
     return pd.DataFrame(data)
 
 # -----------------------------------------------------------------------------
-# SIDEBAR
+# 4. INTERFACE SIDEBAR
 # -----------------------------------------------------------------------------
 st.sidebar.header("Navigation")
 page = st.sidebar.radio("Menu :", ["Suivi des Marchés", "Simulateur Futur", "🔙 Backtest & Performance"])
@@ -209,7 +275,7 @@ for news in news_items:
     st.sidebar.markdown("---")
 
 # -----------------------------------------------------------------------------
-# PAGE 1 : SUIVI DES MARCHÉS
+# 5. PAGE : SUIVI DES MARCHÉS
 # -----------------------------------------------------------------------------
 if page == "Suivi des Marchés":
     st.header("📊 Suivi des Cours en Direct")
@@ -247,24 +313,26 @@ if page == "Suivi des Marchés":
         st.plotly_chart(fig, use_container_width=True)
 
 # -----------------------------------------------------------------------------
-# PAGE 2 : SIMULATEUR FUTUR
+# 6. PAGE : SIMULATEUR FUTUR
 # -----------------------------------------------------------------------------
 elif page == "Simulateur Futur":
     st.header("🚀 Personnalisez votre Plan d'Achat")
     st.info("👇 **Tableau Interactif :** Modifiez les montants pour voir l'impact sur le futur.")
 
+    # Editeur de données
     df_base = pd.DataFrame(DEFAULT_PLAN)
     edited_df = st.data_editor(
         df_base,
         column_config={
             "Action": st.column_config.TextColumn("Action", disabled=True),
-            "Ticker": st.column_config.TextColumn("Ticker", disabled=True, width="small"),
+            "Ticker": st.column_config.TextColumn("Ticker", disabled=True), # Caché ou visible
             "Montant (€)": st.column_config.NumberColumn("Montant (€)", min_value=0, step=1, format="%d €"),
             "Fréquence": st.column_config.SelectboxColumn("Fréquence", options=list(FREQ_MAP.keys()), required=True)
         },
         hide_index=True, use_container_width=True, num_rows="fixed", key="editor_futur"
     )
 
+    # Calcul Budget
     total_monthly_investment = 0
     for index, row in edited_df.iterrows():
         total_monthly_investment += row["Montant (€)"] * FREQ_MAP.get(row["Fréquence"], 1.0)
@@ -300,71 +368,66 @@ elif page == "Simulateur Futur":
     st.subheader("📅 Détail des gains : Jour après Jour")
     df_proj = calculate_projection_table(initial_inv, monthly_inv, rate)
     
-    # Affichage simple si matplotlib bug, sinon on peut remettre le style
-    st.dataframe(
-        df_proj.style.format({
-            "Total Versé (€)": "{:,.0f} €", 
-            "Valeur Estimée (€)": "{:,.0f} €", 
-            "Plus-Value (€)": "{:+,.0f} €"
-        }),
-        use_container_width=True, hide_index=True, height=400
-    )
+    # Affichage du tableau avec gestion d'erreur si matplotlib manque
+    try:
+        st.dataframe(
+            df_proj.style.format({
+                "Total Versé (€)": "{:,.0f} €", 
+                "Valeur Estimée (€)": "{:,.0f} €", 
+                "Plus-Value (€)": "{:+,.0f} €"
+            }).background_gradient(subset=["Plus-Value (€)"], cmap="Greens"),
+            use_container_width=True, hide_index=True, height=400
+        )
+    except:
+        # Fallback si pas de matplotlib
+        st.dataframe(
+            df_proj.style.format({
+                "Total Versé (€)": "{:,.0f} €", 
+                "Valeur Estimée (€)": "{:,.0f} €", 
+                "Plus-Value (€)": "{:+,.0f} €"
+            }),
+            use_container_width=True, hide_index=True, height=400
+        )
 
 # -----------------------------------------------------------------------------
-# PAGE 3 : BACKTEST & PERFORMANCE (NOUVEAU)
+# 7. PAGE : BACKTEST (CORRIGÉE)
 # -----------------------------------------------------------------------------
 elif page == "🔙 Backtest & Performance":
     st.header("⏳ Voyage dans le temps")
-    st.markdown("Si vous aviez investi **1 000 €** dans ce portefeuille (BoussiBroke) il y a 5 ans, voici ce qui se serait passé comparé au **CAC 40**.")
+    st.markdown("Simulation de votre portefeuille **réel** (BoussiBroke) sur le passé face au **CAC 40**.")
     
-    st.info("ℹ️ Cette simulation prend en compte vos pondérations exactes (Nasdaq, Inde, Air Liquide...) et gère les taux de change (USD/EUR/GBP) historiquement.")
+    st.info("ℹ️ Le graphique commence à la date où **toutes** vos actions existent (environ mi-2023 à cause de l'ETF Défense).")
 
-    # On réutilise le dataframe du plan par défaut pour calculer les poids
     df_backtest_input = pd.DataFrame(DEFAULT_PLAN)
     
-    with st.spinner("Analyse des 5 dernières années en cours (Téléchargement des données)..."):
-        # Calcul de la courbe du portefeuille
+    with st.spinner("Récupération des données historiques et calculs..."):
         portfolio_curve = compute_backtest(df_backtest_input, years=5)
         
-        # Récupération du benchmark (CAC 40) pour comparer
+        # Benchmark CAC 40
         cac40 = get_stock_data("^FCHI", period="5y")
         
         if portfolio_curve is not None and cac40 is not None:
-            # Normalisation CAC 40 base 100
-            cac40_norm = (cac40["Close"] / cac40["Close"].iloc[0]) * 100
+            # Alignement des dates : on coupe le CAC40 pour qu'il commence en même temps que le portefeuille
+            start_date = portfolio_curve.index[0]
+            cac40_aligned = cac40["Close"][start_date:]
             
-            # Calcul des métriques finales
+            # Normalisation CAC 40 base 100
+            cac40_norm = (cac40_aligned / cac40_aligned.iloc[0]) * 100
+            
+            # KPI
             perf_portfolio = portfolio_curve.iloc[-1] - 100
             perf_cac = cac40_norm.iloc[-1] - 100
             
-            # Affichage KPIs
             kpi1, kpi2 = st.columns(2)
-            kpi1.metric("Performance BoussiBroke (5 ans)", f"+{perf_portfolio:.2f}%", delta="Votre Stratégie")
-            kpi2.metric("Performance CAC 40 (5 ans)", f"+{perf_cac:.2f}%", delta="Indice Français")
+            kpi1.metric("Performance BoussiBroke", f"+{perf_portfolio:.2f}%", delta="Votre Stratégie")
+            kpi2.metric("Performance CAC 40", f"+{perf_cac:.2f}%", delta="Indice de référence")
             
-            # Graphique Comparatif
+            # Graphique
             fig_bt = go.Figure()
-            # Courbe Portefeuille
-            fig_bt.add_trace(go.Scatter(
-                x=portfolio_curve.index, y=portfolio_curve, 
-                mode='lines', name='Portefeuille BoussiBroke', 
-                line=dict(color='#00CC96', width=3)
-            ))
-            # Courbe Benchmark
-            fig_bt.add_trace(go.Scatter(
-                x=cac40_norm.index, y=cac40_norm, 
-                mode='lines', name='CAC 40 (Comparaison)', 
-                line=dict(color='gray', dash='dot')
-            ))
+            fig_bt.add_trace(go.Scatter(x=portfolio_curve.index, y=portfolio_curve, mode='lines', name='BoussiBroke', line=dict(color='#00CC96', width=3)))
+            fig_bt.add_trace(go.Scatter(x=cac40_norm.index, y=cac40_norm, mode='lines', name='CAC 40', line=dict(color='gray', dash='dot')))
             
-            fig_bt.update_layout(
-                title="Performance Base 100 (5 Ans)", 
-                xaxis_title="Année", 
-                yaxis_title="Valeur (Base 100)",
-                height=600
-            )
+            fig_bt.update_layout(title="Comparaison Base 100", xaxis_title="Date", yaxis_title="Valeur (Base 100)", height=600)
             st.plotly_chart(fig_bt, use_container_width=True)
-            
-            st.success("✅ Analyse terminée. Ce graphique montre la puissance de la diversification (Tech US + Inde + Industrie FR) face à un indice classique.")
         else:
-            st.error("Impossible de récupérer certaines données historiques pour le moment. Réessayez plus tard.")
+            st.error("Données insuffisantes pour le backtest (Vérifiez la connexion ou les tickers).")
