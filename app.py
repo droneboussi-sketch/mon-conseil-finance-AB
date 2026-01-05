@@ -14,12 +14,13 @@ st.set_page_config(
     layout="wide"
 )
 
-# CSS : Force le texte noir dans les métriques pour éviter le bug d'affichage blanc sur blanc
+# CSS : Style amélioré pour les News et correction du mode sombre/clair
 st.markdown("""
 <style>
     .main { background-color: #f5f5f5; }
     h1 { color: #2c3e50; }
     
+    /* Cartes (Metrics) */
     div[data-testid="stMetric"] {
         background-color: #ffffff;
         padding: 15px;
@@ -27,21 +28,40 @@ st.markdown("""
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         border: 1px solid #e0e0e0;
     }
+    div[data-testid="stMetric"] label { color: #000000 !important; }
+    div[data-testid="stMetric"] div[data-testid="stMetricValue"] { color: #000000 !important; }
     
-    div[data-testid="stMetric"] label {
-        color: #000000 !important; 
+    /* STYLE DES ACTUALITÉS (Inspiration Newsletter) */
+    .news-card {
+        background-color: white;
+        padding: 10px;
+        margin-bottom: 10px;
+        border-radius: 5px;
+        border-left: 4px solid #00CC96;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }
-    div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
-        color: #000000 !important; 
-    }
-    div[data-testid="stMetric"] div[data-testid="stMetricDelta"] {
+    a.news-link {
+        text-decoration: none;
+        color: #2c3e50;
         font-weight: bold;
+        font-size: 14px;
+        display: block;
+        margin-bottom: 4px;
+    }
+    a.news-link:hover {
+        color: #00CC96;
+    }
+    .news-meta {
+        font-size: 11px;
+        color: #888;
+        display: flex;
+        justify-content: space-between;
     }
 </style>
 """, unsafe_allow_html=True)
 
 st.title("📈 BoussiBroke Investissement")
-st.markdown("Bienvenue ! Voici les conseils d'un amateur boursier. Ce tableau de bord permet de suivre les cours, simuler votre richesse future et vérifier les performances passées.")
+st.markdown("Bienvenue ! Voici les conseils d'un amateur boursier. Suivez les cours, simulez votre futur et restez informé des grandes tendances.")
 st.markdown("---")
 
 # -----------------------------------------------------------------------------
@@ -103,7 +123,6 @@ DEFAULT_PLAN = [
 
 @st.cache_data(ttl=3600)
 def get_stock_data(ticker_symbol, period="5y"):
-    """Récupère les données brutes."""
     try:
         stock = yf.Ticker(ticker_symbol)
         history = stock.history(period=period)
@@ -111,41 +130,65 @@ def get_stock_data(ticker_symbol, period="5y"):
         return history
     except: return None
 
+@st.cache_data(ttl=900) # Mise à jour toutes les 15 min
+def get_market_news():
+    """Récupère et mélange les news de différents secteurs (France, US, Crypto, Macro)."""
+    news_list = []
+    # ^FCHI=CAC40, ^GSPC=S&P500, EURUSD=X (Forex), CL=F (Pétrole)
+    tickers_news = ["^FCHI", "^GSPC", "EURUSD=X", "CL=F"]
+    
+    try:
+        for symbol in tickers_news:
+            t = yf.Ticker(symbol)
+            batch = t.news
+            if batch:
+                for item in batch:
+                    # Extraction propre
+                    title = item.get('title', '')
+                    link = item.get('link', '#')
+                    publisher = item.get('publisher', 'Bourse')
+                    timestamp = item.get('providerPublishTime', 0)
+                    
+                    # On ne garde que si on a un titre
+                    if title and not any(n['title'] == title for n in news_list):
+                        news_list.append({
+                            'title': title,
+                            'link': link,
+                            'publisher': publisher,
+                            'timestamp': timestamp
+                        })
+        
+        # On trie par date (le plus récent en premier)
+        news_list.sort(key=lambda x: x['timestamp'], reverse=True)
+        return news_list[:8] # On garde les 8 plus récentes
+    except:
+        return []
+
 @st.cache_data(ttl=3600)
 def compute_backtest_robust(plan_df, years=5):
-    """Backtest robuste qui gère les dates et les formats complexes."""
-    # 1. Poids
+    # Poids
     plan_df["Budget_Ligne"] = plan_df["Montant (€)"] * plan_df["Fréquence"].map(FREQ_MAP).fillna(1.0)
     total_budget = plan_df["Budget_Ligne"].sum()
     if total_budget == 0: return None
     plan_df["Poids"] = plan_df["Budget_Ligne"] / total_budget
 
-    # 2. Tickers
     tickers = plan_df["Ticker"].unique().tolist()
     tickers_api = list(set(tickers + ["EURUSD=X", "EURGBP=X"]))
 
     try:
         raw_data = yf.download(tickers_api, period=f"{years}y", progress=False)
-        
         # Gestion multi-index yfinance
         if isinstance(raw_data.columns, pd.MultiIndex):
             try:
-                if 'Close' in raw_data.columns.get_level_values(0):
-                    data = raw_data['Close']
-                elif 'Adj Close' in raw_data.columns.get_level_values(0):
-                    data = raw_data['Adj Close']
-                else:
-                    data = raw_data.droplevel(0, axis=1) 
-            except:
-                data = raw_data
+                if 'Close' in raw_data.columns.get_level_values(0): data = raw_data['Close']
+                elif 'Adj Close' in raw_data.columns.get_level_values(0): data = raw_data['Adj Close']
+                else: data = raw_data.droplevel(0, axis=1) 
+            except: data = raw_data
         else:
             data = raw_data['Close'] if 'Close' in raw_data else raw_data
-
         data = data.ffill()
-    except:
-        return None
+    except: return None
 
-    # 3. Calcul Courbe
     portfolio_curve = pd.Series(0.0, index=data.index)
     valid_components = 0
     start_dates = []
@@ -154,15 +197,11 @@ def compute_backtest_robust(plan_df, years=5):
         ticker = row["Ticker"]
         weight = row["Poids"]
         currency = CURRENCY_MAP.get(ticker, "EUR")
-
         if ticker in data.columns:
             series = data[ticker].copy()
+            if currency == "USD" and "EURUSD=X" in data.columns: series = series / data["EURUSD=X"]
+            elif currency == "GBP" and "EURGBP=X" in data.columns: series = series / data["EURGBP=X"]
             
-            if currency == "USD" and "EURUSD=X" in data.columns:
-                series = series / data["EURUSD=X"]
-            elif currency == "GBP" and "EURGBP=X" in data.columns:
-                series = series / data["EURGBP=X"]
-
             first_idx = series.first_valid_index()
             if first_idx:
                 start_dates.append(first_idx)
@@ -172,11 +211,8 @@ def compute_backtest_robust(plan_df, years=5):
                     valid_components += 1
 
     if valid_components == 0 or not start_dates: return None
-
-    # 4. Coupure propre
     global_start_date = max(start_dates)
     final_curve = portfolio_curve[global_start_date:]
-    
     if not final_curve.empty and final_curve.iloc[0] > 0:
         final_curve = (final_curve / final_curve.iloc[0]) * 100
         return final_curve
@@ -209,17 +245,35 @@ def calculate_dca_curve(initial, monthly_amount, years, rate):
     return pd.DataFrame(data)
 
 # -----------------------------------------------------------------------------
-# 4. INTERFACE SIDEBAR
+# 4. INTERFACE SIDEBAR (NEWSFEED AMÉLIORÉ)
 # -----------------------------------------------------------------------------
 st.sidebar.header("Navigation")
 page = st.sidebar.radio("Menu :", ["Suivi des Marchés", "Simulateur Futur", "🔙 Backtest & Performance"])
 st.sidebar.markdown("---")
-st.sidebar.header("📰 Actualités Éco")
-news_items = [{"titre": "La FED annonce une pause", "impact": "Positif"}, {"titre": "Secteur Tech en hausse", "impact": "Positif"}]
-for news in news_items:
-    st.sidebar.markdown(f"**{news['titre']}**")
-    st.sidebar.markdown(f":green[Impact: {news['impact']}]")
-    st.sidebar.markdown("---")
+st.sidebar.header("📰 Les Échos des Marchés")
+
+# Chargement des news en direct
+news_data = get_market_news()
+
+if news_data:
+    for news in news_data:
+        # On nettoie le timestamp pour avoir une heure lisible si possible
+        # (Yahoo donne un timestamp brut)
+        st.sidebar.markdown(
+            f"""
+            <div class="news-card">
+                <a href="{news['link']}" target="_blank" class="news-link">{news['title']}</a>
+                <div class="news-meta">
+                    <span>{news['publisher']}</span>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+else:
+    st.sidebar.caption("Chargement des actualités...")
+    
+st.sidebar.markdown("---")
 
 # -----------------------------------------------------------------------------
 # 5. PAGE : SUIVI DES MARCHÉS
@@ -285,10 +339,14 @@ elif page == "Simulateur Futur":
 
     st.subheader("📅 Détail des gains")
     df_proj = calculate_projection_table(initial_inv, monthly_inv, rate)
-    st.dataframe(df_proj.style.format({"Total Versé (€)": "{:,.0f} €", "Valeur Estimée (€)": "{:,.0f} €", "Plus-Value (€)": "{:+,.0f} €"}), use_container_width=True, hide_index=True)
+    try:
+        # Style coloré si matplotlib dispo
+        st.dataframe(df_proj.style.format({"Total Versé (€)": "{:,.0f} €", "Valeur Estimée (€)": "{:,.0f} €", "Plus-Value (€)": "{:+,.0f} €"}).background_gradient(subset=["Plus-Value (€)"], cmap="Greens"), use_container_width=True, hide_index=True)
+    except:
+        st.dataframe(df_proj.style.format({"Total Versé (€)": "{:,.0f} €", "Valeur Estimée (€)": "{:,.0f} €", "Plus-Value (€)": "{:+,.0f} €"}), use_container_width=True, hide_index=True)
 
 # -----------------------------------------------------------------------------
-# 7. PAGE : BACKTEST (CORRECTIF TZ-AWARE)
+# 7. PAGE : BACKTEST (ROBUSTE + CLEAN TZ)
 # -----------------------------------------------------------------------------
 elif page == "🔙 Backtest & Performance":
     st.header("⏳ Voyage dans le temps (Backtest)")
@@ -302,13 +360,12 @@ elif page == "🔙 Backtest & Performance":
         cac40_raw = get_stock_data("^FCHI", period="5y")
         
         if portfolio_curve is not None and cac40_raw is not None:
-            # === CORRECTIF : Suppression des Timezones pour éviter l'erreur de comparaison ===
+            # === CLEAN TZ (Correctif Timezone) ===
             if portfolio_curve.index.tz is not None:
                 portfolio_curve.index = portfolio_curve.index.tz_localize(None)
-            
             if cac40_raw.index.tz is not None:
                 cac40_raw.index = cac40_raw.index.tz_localize(None)
-            # ==============================================================================
+            # =====================================
 
             start_date = portfolio_curve.index[0]
             cac40_aligned = cac40_raw['Close'][start_date:]
