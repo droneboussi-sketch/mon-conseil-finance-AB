@@ -33,14 +33,23 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("📈 BoussiBroke Investissement")
-st.markdown("Bienvenue ! Voici les conseils d'un amateur boursier qui investit des fractions d'actions sur son temps libre.")
+st.markdown("Bienvenue ! Voici les conseils d'un amateur boursier. Ce tableau est interactif : **modifiez les montants** ci-dessous pour simuler votre propre budget.")
 st.markdown("---")
 
 # -----------------------------------------------------------------------------
-# DONNÉES
+# DONNÉES INITIALES
 # -----------------------------------------------------------------------------
 
-# Pour le Tracker (Affichage des cours)
+# Dictionnaire pour convertir les textes de fréquence en nombre par mois
+FREQ_MAP = {
+    "1x / semaine": 4.33,
+    "1x / 2 semaines": 2.16,
+    "1x / mois": 1.0,
+    "2x / mois": 2.0,
+    "3x / mois": 3.0
+}
+
+# Liste des tickers pour le tracker
 TICKERS_TRACKER = {
     "🇺🇸 Nasdaq 100": "CNDX.L", 
     "🇺🇸 Berkshire Hathaway B": "BRK-B",
@@ -58,23 +67,22 @@ TICKERS_TRACKER = {
     "🌍 World ex-USA": "ACWX"
 }
 
-# TON PLAN D'INVESTISSEMENT (En Euros fixes)
-# coeff_mensuel permet de ramener la fréquence à un mois (ex: hebdo = x4.33)
-MY_PLAN = [
-    {"nom": "Nasdaq 100", "montant": 1, "freq": "1x / semaine", "coeff": 4.33},
-    {"nom": "Berkshire B", "montant": 2, "freq": "1x / semaine", "coeff": 4.33},
-    {"nom": "Take-Two", "montant": 3, "freq": "1x / semaine", "coeff": 4.33},
-    {"nom": "Saint-Gobain", "montant": 2, "freq": "1x / 2 semaines", "coeff": 2.16},
-    {"nom": "Burberry", "montant": 1, "freq": "1x / semaine", "coeff": 4.33},
-    {"nom": "MSCI India", "montant": 1, "freq": "1x / 2 semaines", "coeff": 2.16},
-    {"nom": "Apple", "montant": 1, "freq": "1x / semaine", "coeff": 4.33},
-    {"nom": "Dow Jones", "montant": 2, "freq": "1x / 2 semaines", "coeff": 2.16},
-    {"nom": "Microsoft", "montant": 1, "freq": "2x / mois", "coeff": 2.0},
-    {"nom": "Future Defense", "montant": 1, "freq": "1x / mois (Est.)", "coeff": 1.0}, # Supposé 1/mois
-    {"nom": "Air Liquide", "montant": 1, "freq": "1x / mois", "coeff": 1.0},
-    {"nom": "Nasdaq x3", "montant": 2, "freq": "1x / mois", "coeff": 1.0},
-    {"nom": "Véolia", "montant": 2, "freq": "2x / mois", "coeff": 2.0},
-    {"nom": "World ex-USA", "montant": 3, "freq": "1x / mois", "coeff": 1.0},
+# Données par défaut du tableau (Ton plan à toi)
+DEFAULT_PLAN = [
+    {"Action": "Nasdaq 100", "Montant (€)": 1, "Fréquence": "1x / semaine"},
+    {"Action": "Berkshire B", "Montant (€)": 2, "Fréquence": "1x / semaine"},
+    {"Action": "Take-Two", "Montant (€)": 3, "Fréquence": "1x / semaine"},
+    {"Action": "Saint-Gobain", "Montant (€)": 2, "Fréquence": "1x / 2 semaines"},
+    {"Action": "Burberry", "Montant (€)": 1, "Fréquence": "1x / semaine"},
+    {"Action": "MSCI India", "Montant (€)": 1, "Fréquence": "1x / 2 semaines"},
+    {"Action": "Apple", "Montant (€)": 1, "Fréquence": "1x / semaine"},
+    {"Action": "Dow Jones", "Montant (€)": 2, "Fréquence": "1x / 2 semaines"},
+    {"Action": "Microsoft", "Montant (€)": 1, "Fréquence": "2x / mois"},
+    {"Action": "Future Defense", "Montant (€)": 1, "Fréquence": "1x / mois"},
+    {"Action": "Air Liquide", "Montant (€)": 1, "Fréquence": "1x / mois"},
+    {"Action": "Nasdaq x3", "Montant (€)": 2, "Fréquence": "1x / mois"},
+    {"Action": "Véolia", "Montant (€)": 2, "Fréquence": "2x / mois"},
+    {"Action": "World ex-USA", "Montant (€)": 3, "Fréquence": "1x / mois"},
 ]
 
 # -----------------------------------------------------------------------------
@@ -91,34 +99,28 @@ def get_stock_data(ticker_symbol, period="5y"):
     except: return None
 
 def calculate_dca(initial, monthly_amount, years, rate):
-    """Calcule l'intérêt composé avec apport mensuel fixe"""
     rate_monthly = (1 + rate/100)**(1/12) - 1
-    
     data = []
     current_portfolio = initial
     total_invested = initial
     
-    # On génère les points année par année
     for year in range(years + 1):
         data.append({
             "Année": year,
             "Total Investi": round(total_invested, 2),
             "Valeur Portefeuille": round(current_portfolio, 2)
         })
-        
-        # Simulation des 12 mois de l'année suivante
         if year < years:
             for _ in range(12):
                 current_portfolio = current_portfolio * (1 + rate_monthly) + monthly_amount
                 total_invested += monthly_amount
-                
     return pd.DataFrame(data)
 
 # -----------------------------------------------------------------------------
 # SIDEBAR
 # -----------------------------------------------------------------------------
 st.sidebar.header("Navigation")
-page = st.sidebar.radio("Aller vers :", ["Suivi des Marchés", "Simulateur Plan BoussiBroke"])
+page = st.sidebar.radio("Aller vers :", ["Suivi des Marchés", "Simulateur Interactif"])
 
 st.sidebar.markdown("---")
 st.sidebar.header("📰 Actualités Éco")
@@ -164,7 +166,6 @@ if page == "Suivi des Marchés":
                 except: ytd_change = 0.0
 
                 with cols[idx]:
-                    # Note: Le prix affiché est celui de l'action entière
                     st.metric(label=name, value=f"{last_price:,.2f}", delta=f"{day_change:.2f}%")
                     st.caption(f"YTD: {ytd_change:+.2f}%")
 
@@ -175,44 +176,67 @@ if page == "Suivi des Marchés":
                     y_axis_title = "Base 100 (Comparatif)"
                 else:
                     fig.add_trace(go.Scatter(x=data.index, y=data['Close'], name=name))
-                    y_axis_title = "Prix de l'action"
+                    y_axis_title = "Prix"
 
         fig.update_layout(title="Comparaison (5 ans)", yaxis_title=y_axis_title, height=500)
         st.plotly_chart(fig, use_container_width=True)
 
 # -----------------------------------------------------------------------------
-# PAGE 2 : SIMULATEUR PLAN BOUSSIBROKE
+# PAGE 2 : SIMULATEUR INTERACTIF
 # -----------------------------------------------------------------------------
-elif page == "Simulateur Plan BoussiBroke":
-    st.header("🚀 Projection du Plan d'Achat")
-    st.markdown("Simulation basée sur des investissements en **fractions d'actions** (sommes fixes en Euros).")
+elif page == "Simulateur Interactif":
+    st.header("🚀 Personnalisez votre Plan d'Achat")
+    st.info("👇 **Tableau Interactif :** Cliquez sur les cases ci-dessous pour modifier les montants ou les fréquences. Le calcul se fera automatiquement.")
 
-    # 1. Calcul du total mensuel
+    # 1. Création du DataFrame éditable
+    df_base = pd.DataFrame(DEFAULT_PLAN)
+    
+    # Configuration de l'éditeur (Liste déroulante pour la fréquence)
+    edited_df = st.data_editor(
+        df_base,
+        column_config={
+            "Action": st.column_config.TextColumn("Action", disabled=True), # On empêche de modifier le nom
+            "Montant (€)": st.column_config.NumberColumn("Montant (€)", min_value=0, step=1, format="%d €"),
+            "Fréquence": st.column_config.SelectboxColumn(
+                "Fréquence",
+                help="Combien de fois achetez-vous cette fraction ?",
+                width="medium",
+                options=list(FREQ_MAP.keys()), # Liste des choix possibles
+                required=True
+            )
+        },
+        hide_index=True,
+        use_container_width=True,
+        num_rows="fixed" # On empêche d'ajouter des lignes pour garder la liste fixe
+    )
+
+    # 2. Calcul du total mensuel dynamique
     total_monthly_investment = 0
     
-    with st.expander("📝 Voir le détail de votre plan mensuel"):
-        st.table(pd.DataFrame(MY_PLAN)[['nom', 'montant', 'freq']].rename(columns={'nom': 'Action', 'montant': 'Montant (€)', 'freq': 'Fréquence'}))
+    # On parcourt le tableau modifié par l'utilisateur
+    for index, row in edited_df.iterrows():
+        montant = row["Montant (€)"]
+        freq_text = row["Fréquence"]
+        coeff = FREQ_MAP.get(freq_text, 1.0) # On récupère le coeff (ex: 4.33 pour semaine)
         
-    # Calcul mathématique simple
-    for item in MY_PLAN:
-        monthly_cost = item["montant"] * item["coeff"]
-        total_monthly_investment += monthly_cost
+        total_monthly_investment += montant * coeff
 
     st.markdown("---")
     
-    # 2. Paramètres de simulation
+    # 3. Paramètres & Résultats
     col1, col2 = st.columns([1, 2])
     
     with col1:
         st.subheader("Paramètres")
-        st.info(f"💰 **Investissement Mensuel Total : {total_monthly_investment:.2f} €**")
+        st.success(f"💰 **Total Mensuel Calculé : {int(total_monthly_investment)} €**")
+        st.caption("Ce montant est calculé à partir du tableau ci-dessus.")
         
-        monthly_inv = st.number_input("Arrondi mensuel (€)", value=int(total_monthly_investment))
+        # On permet d'ajuster l'arrondi si besoin
+        monthly_inv = st.number_input("Montant retenu pour la simu (€)", value=int(total_monthly_investment))
         initial_inv = st.number_input("Capital de départ (€)", value=0)
-        rate = st.slider("Rendement annuel espéré (%)", 5, 15, 9) 
+        rate = st.slider("Rendement annuel (%)", 5, 15, 9) 
         years = st.slider("Durée (Années)", 5, 30, 15)
 
-    # 3. Calculs et Graphique
     with col2:
         df_sim = calculate_dca(initial_inv, monthly_inv, years, rate)
         
@@ -227,8 +251,8 @@ elif page == "Simulateur Plan BoussiBroke":
         m3.metric("Plus-Value", f"{gain:,.0f} €", delta=f"x {final_val/total_put:.2f}")
 
         fig_sim = go.Figure()
-        fig_sim.add_trace(go.Scatter(x=df_sim["Année"], y=df_sim["Valeur Portefeuille"], fill='tozeroy', name='Valeur Portefeuille', line=dict(color='#00CC96')))
-        fig_sim.add_trace(go.Scatter(x=df_sim["Année"], y=df_sim["Total Investi"], fill='tozeroy', name='Argent Sorti', line=dict(color='#636EFA')))
+        fig_sim.add_trace(go.Scatter(x=df_sim["Année"], y=df_sim["Valeur Portefeuille"], fill='tozeroy', name='Portefeuille', line=dict(color='#00CC96')))
+        fig_sim.add_trace(go.Scatter(x=df_sim["Année"], y=df_sim["Total Investi"], fill='tozeroy', name='Argent de poche', line=dict(color='#636EFA')))
         
         fig_sim.update_layout(title=f"Projection de richesse sur {years} ans", xaxis_title="Années", yaxis_title="Montant (€)")
         st.plotly_chart(fig_sim, use_container_width=True)
