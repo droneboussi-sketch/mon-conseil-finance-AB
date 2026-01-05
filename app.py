@@ -33,14 +33,13 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("📈 BoussiBroke Investissement")
-st.markdown("Bienvenue ! Voici les conseils d'un amateur boursier. Ce tableau est interactif : **modifiez les montants** ci-dessous pour simuler votre propre budget.")
+st.markdown("Bienvenue ! Voici les conseils d'un amateur boursier. Modifiez le tableau ci-dessous pour simuler votre propre budget.")
 st.markdown("---")
 
 # -----------------------------------------------------------------------------
 # DONNÉES INITIALES
 # -----------------------------------------------------------------------------
 
-# Dictionnaire pour convertir les textes de fréquence en nombre par mois
 FREQ_MAP = {
     "1x / semaine": 4.33,
     "1x / 2 semaines": 2.16,
@@ -49,7 +48,6 @@ FREQ_MAP = {
     "3x / mois": 3.0
 }
 
-# Liste des tickers pour le tracker
 TICKERS_TRACKER = {
     "🇺🇸 Nasdaq 100": "CNDX.L", 
     "🇺🇸 Berkshire Hathaway B": "BRK-B",
@@ -67,7 +65,7 @@ TICKERS_TRACKER = {
     "🌍 World ex-USA": "ACWX"
 }
 
-# Données par défaut du tableau (Ton plan à toi)
+# Ton plan par défaut
 DEFAULT_PLAN = [
     {"Action": "Nasdaq 100", "Montant (€)": 1, "Fréquence": "1x / semaine"},
     {"Action": "Berkshire B", "Montant (€)": 2, "Fréquence": "1x / semaine"},
@@ -98,7 +96,58 @@ def get_stock_data(ticker_symbol, period="5y"):
         return history
     except: return None
 
-def calculate_dca(initial, monthly_amount, years, rate):
+def calculate_projection_table(initial, monthly_amount, rate):
+    """Calcule les projections pour des périodes fixes."""
+    # Taux mensuel équivalent
+    rate_monthly = (1 + rate/100)**(1/12) - 1
+    
+    # Liste des horizons temporels (Label : nombre de mois)
+    # 1 jour = 0.033 mois, 1 semaine = 0.23 mois
+    horizons = {
+        "1 Jour": 1/30,
+        "1 Semaine": 1/4.33,
+        "1 Mois": 1,
+        "6 Mois": 6,
+        "1 An": 12,
+        "3 Ans": 36,
+        "5 Ans": 60,
+        "7 Ans": 84,
+        "10 Ans": 120,
+        "15 Ans": 180,
+        "20 Ans": 240,
+        "30 Ans": 360
+    }
+    
+    results = []
+    
+    for label, months in horizons.items():
+        # Formule Valeur Future (FV) avec versements mensuels
+        # FV = P * (1+r)^n + PMT * [ ((1+r)^n - 1) / r ]
+        
+        # 1. Intérêts sur le capital de départ
+        fv_initial = initial * (1 + rate_monthly)**months
+        
+        # 2. Intérêts sur les versements périodiques
+        if rate_monthly == 0:
+            fv_series = monthly_amount * months
+        else:
+            fv_series = monthly_amount * ((1 + rate_monthly)**months - 1) / rate_monthly
+            
+        total_val = fv_initial + fv_series
+        total_invested = initial + (monthly_amount * months)
+        gain = total_val - total_invested
+        
+        results.append({
+            "Période": label,
+            "Total Versé (€)": total_invested,
+            "Valeur Estimée (€)": total_val,
+            "Plus-Value (€)": gain
+        })
+        
+    return pd.DataFrame(results)
+
+def calculate_dca_curve(initial, monthly_amount, years, rate):
+    """Calcule la courbe d'évolution année par année."""
     rate_monthly = (1 + rate/100)**(1/12) - 1
     data = []
     current_portfolio = initial
@@ -186,73 +235,88 @@ if page == "Suivi des Marchés":
 # -----------------------------------------------------------------------------
 elif page == "Simulateur Interactif":
     st.header("🚀 Personnalisez votre Plan d'Achat")
-    st.info("👇 **Tableau Interactif :** Cliquez sur les cases ci-dessous pour modifier les montants ou les fréquences. Le calcul se fera automatiquement.")
+    st.info("👇 **Tableau Interactif :** Modifiez les montants pour voir l'impact sur le futur.")
 
-    # 1. Création du DataFrame éditable
+    # 1. Tableau éditable
     df_base = pd.DataFrame(DEFAULT_PLAN)
-    
-    # Configuration de l'éditeur (Liste déroulante pour la fréquence)
     edited_df = st.data_editor(
         df_base,
         column_config={
-            "Action": st.column_config.TextColumn("Action", disabled=True), # On empêche de modifier le nom
+            "Action": st.column_config.TextColumn("Action", disabled=True),
             "Montant (€)": st.column_config.NumberColumn("Montant (€)", min_value=0, step=1, format="%d €"),
-            "Fréquence": st.column_config.SelectboxColumn(
-                "Fréquence",
-                help="Combien de fois achetez-vous cette fraction ?",
-                width="medium",
-                options=list(FREQ_MAP.keys()), # Liste des choix possibles
-                required=True
-            )
+            "Fréquence": st.column_config.SelectboxColumn("Fréquence", options=list(FREQ_MAP.keys()), required=True)
         },
         hide_index=True,
         use_container_width=True,
-        num_rows="fixed" # On empêche d'ajouter des lignes pour garder la liste fixe
+        num_rows="fixed"
     )
 
-    # 2. Calcul du total mensuel dynamique
+    # 2. Calcul du total mensuel
     total_monthly_investment = 0
-    
-    # On parcourt le tableau modifié par l'utilisateur
     for index, row in edited_df.iterrows():
-        montant = row["Montant (€)"]
-        freq_text = row["Fréquence"]
-        coeff = FREQ_MAP.get(freq_text, 1.0) # On récupère le coeff (ex: 4.33 pour semaine)
-        
-        total_monthly_investment += montant * coeff
+        total_monthly_investment += row["Montant (€)"] * FREQ_MAP.get(row["Fréquence"], 1.0)
 
     st.markdown("---")
     
-    # 3. Paramètres & Résultats
+    # 3. Paramètres
     col1, col2 = st.columns([1, 2])
     
     with col1:
         st.subheader("Paramètres")
-        st.success(f"💰 **Total Mensuel Calculé : {int(total_monthly_investment)} €**")
-        st.caption("Ce montant est calculé à partir du tableau ci-dessus.")
+        st.success(f"💰 **Total Mensuel : {int(total_monthly_investment)} €**")
         
-        # On permet d'ajuster l'arrondi si besoin
-        monthly_inv = st.number_input("Montant retenu pour la simu (€)", value=int(total_monthly_investment))
+        monthly_inv = st.number_input("Montant retenu (€)", value=int(total_monthly_investment))
         initial_inv = st.number_input("Capital de départ (€)", value=0)
         rate = st.slider("Rendement annuel (%)", 5, 15, 9) 
-        years = st.slider("Durée (Années)", 5, 30, 15)
+        years_graph = st.slider("Durée Graphique (Années)", 5, 30, 15)
 
+    # 4. Graphique
     with col2:
-        df_sim = calculate_dca(initial_inv, monthly_inv, years, rate)
+        df_graph = calculate_dca_curve(initial_inv, monthly_inv, years_graph, rate)
         
-        final_val = df_sim.iloc[-1]["Valeur Portefeuille"]
-        total_put = df_sim.iloc[-1]["Total Investi"]
+        final_val = df_graph.iloc[-1]["Valeur Portefeuille"]
+        total_put = df_graph.iloc[-1]["Total Investi"]
         gain = final_val - total_put
         
-        st.subheader("Résultats Futurs")
+        st.subheader("Projection Graphique")
         m1, m2, m3 = st.columns(3)
-        m1.metric("Capital Final", f"{final_val:,.0f} €")
-        m2.metric("Total Versé", f"{total_put:,.0f} €")
-        m3.metric("Plus-Value", f"{gain:,.0f} €", delta=f"x {final_val/total_put:.2f}")
+        m1.metric("Final", f"{final_val:,.0f} €")
+        m2.metric("Versé", f"{total_put:,.0f} €")
+        m3.metric("Gain", f"{gain:,.0f} €")
 
         fig_sim = go.Figure()
-        fig_sim.add_trace(go.Scatter(x=df_sim["Année"], y=df_sim["Valeur Portefeuille"], fill='tozeroy', name='Portefeuille', line=dict(color='#00CC96')))
-        fig_sim.add_trace(go.Scatter(x=df_sim["Année"], y=df_sim["Total Investi"], fill='tozeroy', name='Argent de poche', line=dict(color='#636EFA')))
-        
-        fig_sim.update_layout(title=f"Projection de richesse sur {years} ans", xaxis_title="Années", yaxis_title="Montant (€)")
+        fig_sim.add_trace(go.Scatter(x=df_graph["Année"], y=df_graph["Valeur Portefeuille"], fill='tozeroy', name='Portefeuille', line=dict(color='#00CC96')))
+        fig_sim.add_trace(go.Scatter(x=df_graph["Année"], y=df_graph["Total Investi"], fill='tozeroy', name='Versé', line=dict(color='#636EFA')))
+        fig_sim.update_layout(height=400, margin=dict(l=0, r=0, t=30, b=0))
         st.plotly_chart(fig_sim, use_container_width=True)
+
+    # 5. NOUVEAU : Tableau Détaillé des Périodes
+    st.markdown("---")
+    st.subheader("📅 Détail des gains : Jour après Jour, Année après Année")
+    st.markdown("Voici exactement ce que deviendrait votre argent sur différentes périodes.")
+
+    # Calcul du tableau complet
+    df_proj = calculate_projection_table(initial_inv, monthly_inv, rate)
+
+    # Mise en forme pour l'affichage (Arrondi et ajout du symbole €)
+    # On crée une copie pour l'affichage pour garder les chiffres bruts si besoin
+    df_display = df_proj.copy()
+    df_display["Total Versé (€)"] = df_display["Total Versé (€)"].apply(lambda x: f"{x:,.0f} €")
+    df_display["Valeur Estimée (€)"] = df_display["Valeur Estimée (€)"].apply(lambda x: f"{x:,.0f} €")
+    
+    # On met une couleur sur la plus-value pour que ce soit joli
+    def color_gain(val):
+        color = 'green' if val > 0 else 'red'
+        return f'color: {color}'
+
+    # Affichage avec Pandas Styler (plus joli que st.table simple)
+    st.dataframe(
+        df_proj.style.format({
+            "Total Versé (€)": "{:,.0f} €", 
+            "Valeur Estimée (€)": "{:,.0f} €", 
+            "Plus-Value (€)": "{:+,.0f} €"
+        }).background_gradient(subset=["Plus-Value (€)"], cmap="Greens"),
+        use_container_width=True,
+        hide_index=True,
+        height=500 
+    )
