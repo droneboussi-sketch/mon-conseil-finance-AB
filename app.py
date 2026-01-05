@@ -6,7 +6,7 @@ import numpy as np
 from datetime import datetime
 
 # -----------------------------------------------------------------------------
-# 1. CONFIGURATION DE LA PAGE & STYLE (CORRIGÉ POUR LISIBILITÉ)
+# 1. CONFIGURATION DE LA PAGE & STYLE
 # -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="BoussiBroke Investissement",
@@ -14,13 +14,12 @@ st.set_page_config(
     layout="wide"
 )
 
-# CSS CORRIGÉ : On force le texte en noir dans les boites blanches
+# CSS : Force le texte noir dans les métriques pour éviter le bug d'affichage blanc sur blanc
 st.markdown("""
 <style>
     .main { background-color: #f5f5f5; }
     h1 { color: #2c3e50; }
     
-    /* Style des métriques (cartes) */
     div[data-testid="stMetric"] {
         background-color: #ffffff;
         padding: 15px;
@@ -29,15 +28,13 @@ st.markdown("""
         border: 1px solid #e0e0e0;
     }
     
-    /* FORCE LE TEXTE EN NOIR À L'INTÉRIEUR DES MÉTRIQUES */
     div[data-testid="stMetric"] label {
-        color: #000000 !important; /* Le titre (ex: Air Liquide) */
+        color: #000000 !important; 
     }
     div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
-        color: #000000 !important; /* La valeur (ex: 157.00) */
+        color: #000000 !important; 
     }
     div[data-testid="stMetric"] div[data-testid="stMetricDelta"] {
-        /* On laisse la couleur par défaut (vert/rouge) pour le pourcentage */
         font-weight: bold;
     }
 </style>
@@ -59,7 +56,6 @@ FREQ_MAP = {
     "3x / mois": 3.0
 }
 
-# Mapping devises
 CURRENCY_MAP = {
     "CNDX.L": "USD", "BRK-B": "USD", "TTWO": "USD", "SGO.PA": "EUR",
     "BRBY.L": "GBP", "CIN.PA": "EUR", "AAPL": "USD", "DIA": "USD",
@@ -67,7 +63,6 @@ CURRENCY_MAP = {
     "VIE.PA": "EUR", "ACWX": "USD"
 }
 
-# Liste Tracker
 TICKERS_TRACKER = {
     "🇺🇸 Nasdaq 100 (iShares)": "CNDX.L", 
     "🇺🇸 Berkshire Hathaway B": "BRK-B",
@@ -85,7 +80,6 @@ TICKERS_TRACKER = {
     "🌍 World ex-USA": "ACWX"
 }
 
-# Plan par défaut
 DEFAULT_PLAN = [
     {"Action": "Nasdaq 100", "Ticker": "CNDX.L", "Montant (€)": 1, "Fréquence": "1x / semaine"},
     {"Action": "Berkshire B", "Ticker": "BRK-B", "Montant (€)": 2, "Fréquence": "1x / semaine"},
@@ -109,7 +103,7 @@ DEFAULT_PLAN = [
 
 @st.cache_data(ttl=3600)
 def get_stock_data(ticker_symbol, period="5y"):
-    """Récupère les données brutes pour le tracker."""
+    """Récupère les données brutes."""
     try:
         stock = yf.Ticker(ticker_symbol)
         history = stock.history(period=period)
@@ -119,54 +113,41 @@ def get_stock_data(ticker_symbol, period="5y"):
 
 @st.cache_data(ttl=3600)
 def compute_backtest_robust(plan_df, years=5):
-    """
-    Version ultra-robuste du backtest.
-    Gère les multi-index de yfinance et les tickers manquants.
-    """
-    # 1. Calcul des poids cibles
+    """Backtest robuste qui gère les dates et les formats complexes."""
+    # 1. Poids
     plan_df["Budget_Ligne"] = plan_df["Montant (€)"] * plan_df["Fréquence"].map(FREQ_MAP).fillna(1.0)
     total_budget = plan_df["Budget_Ligne"].sum()
     if total_budget == 0: return None
     plan_df["Poids"] = plan_df["Budget_Ligne"] / total_budget
 
-    # 2. Préparation des Tickers
+    # 2. Tickers
     tickers = plan_df["Ticker"].unique().tolist()
-    # On ajoute les devises
     tickers_api = list(set(tickers + ["EURUSD=X", "EURGBP=X"]))
 
     try:
-        # Téléchargement en masse
         raw_data = yf.download(tickers_api, period=f"{years}y", progress=False)
         
-        # --- CORRECTION CRITIQUE YFINANCE ---
-        # Si yfinance renvoie un MultiIndex (ex: ('Close', 'AAPL')), on ne garde que 'Close'
+        # Gestion multi-index yfinance
         if isinstance(raw_data.columns, pd.MultiIndex):
             try:
-                # On essaie de récupérer le niveau 'Close' ou 'Adj Close'
                 if 'Close' in raw_data.columns.get_level_values(0):
                     data = raw_data['Close']
                 elif 'Adj Close' in raw_data.columns.get_level_values(0):
                     data = raw_data['Adj Close']
                 else:
-                    # Fallback : on prend le niveau 0 si structure bizarre
                     data = raw_data.droplevel(0, axis=1) 
             except:
-                data = raw_data # On prie
+                data = raw_data
         else:
             data = raw_data['Close'] if 'Close' in raw_data else raw_data
 
-        # Nettoyage de base (Forward Fill pour les jours fériés)
         data = data.ffill()
-        
-    except Exception as e:
+    except:
         return None
 
-    # 3. Construction de la courbe composite
-    # On commence à 0 et on additionne les contributions pondérées
+    # 3. Calcul Courbe
     portfolio_curve = pd.Series(0.0, index=data.index)
     valid_components = 0
-    
-    # Pour déterminer quand commencer le graphique (quand on a assez de données)
     start_dates = []
 
     for idx, row in plan_df.iterrows():
@@ -177,41 +158,29 @@ def compute_backtest_robust(plan_df, years=5):
         if ticker in data.columns:
             series = data[ticker].copy()
             
-            # Gestion Devises simple
             if currency == "USD" and "EURUSD=X" in data.columns:
                 series = series / data["EURUSD=X"]
             elif currency == "GBP" and "EURGBP=X" in data.columns:
                 series = series / data["EURGBP=X"]
 
-            # On note quand cette action commence à avoir des données
             first_idx = series.first_valid_index()
             if first_idx:
                 start_dates.append(first_idx)
-                
-                # Normalisation base 100 à la fin pour aligner les échelles
                 if series.iloc[-1] > 0:
                     normalized = (series / series.iloc[-1]) 
-                    # On ajoute au panier global
                     portfolio_curve = portfolio_curve.add(normalized * weight, fill_value=0)
                     valid_components += 1
 
-    if valid_components == 0 or not start_dates:
-        return None
+    if valid_components == 0 or not start_dates: return None
 
-    # 4. Coupure propre du graphique
-    # On prend la date la plus récente parmi les dates de début (le facteur limitant)
-    # Ex: Si tout commence en 2020 mais NATO.PA en 2023, on coupe en 2023.
+    # 4. Coupure propre
     global_start_date = max(start_dates)
-    
-    # On coupe
     final_curve = portfolio_curve[global_start_date:]
     
-    # On remet en base 100 au début de la période visible
     if not final_curve.empty and final_curve.iloc[0] > 0:
         final_curve = (final_curve / final_curve.iloc[0]) * 100
         return final_curve
-    else:
-        return None
+    return None
 
 def calculate_projection_table(initial, monthly_amount, rate):
     rate_monthly = (1 + rate/100)**(1/12) - 1
@@ -272,7 +241,6 @@ if page == "Suivi des Marchés":
                 with cols[idx]:
                     st.metric(label=name, value=f"{last_price:,.2f}", delta=f"{day_change:.2f}%")
                 
-                # Graphique
                 base_val = data['Close'].iloc[0]
                 normalized = (data['Close'] / base_val) * 100
                 fig.add_trace(go.Scatter(x=data.index, y=normalized, name=name))
@@ -317,11 +285,10 @@ elif page == "Simulateur Futur":
 
     st.subheader("📅 Détail des gains")
     df_proj = calculate_projection_table(initial_inv, monthly_inv, rate)
-    # Affichage sécurisé (sans matplotlib obligatoire)
     st.dataframe(df_proj.style.format({"Total Versé (€)": "{:,.0f} €", "Valeur Estimée (€)": "{:,.0f} €", "Plus-Value (€)": "{:+,.0f} €"}), use_container_width=True, hide_index=True)
 
 # -----------------------------------------------------------------------------
-# 7. PAGE : BACKTEST (CORRIGÉE & ROBUSTE)
+# 7. PAGE : BACKTEST (CORRECTIF TZ-AWARE)
 # -----------------------------------------------------------------------------
 elif page == "🔙 Backtest & Performance":
     st.header("⏳ Voyage dans le temps (Backtest)")
@@ -329,23 +296,26 @@ elif page == "🔙 Backtest & Performance":
     st.info("ℹ️ Le graphique démarre automatiquement à la date de l'action la plus récente de votre portefeuille.")
 
     with st.spinner("Récupération et alignement des données historiques..."):
-        # On utilise le plan par défaut pour le backtest
         df_bt = pd.DataFrame(DEFAULT_PLAN)
         portfolio_curve = compute_backtest_robust(df_bt, years=5)
         
-        # Benchmark CAC40
         cac40_raw = get_stock_data("^FCHI", period="5y")
         
         if portfolio_curve is not None and cac40_raw is not None:
-            # Alignement CAC40 sur la même date de départ
+            # === CORRECTIF : Suppression des Timezones pour éviter l'erreur de comparaison ===
+            if portfolio_curve.index.tz is not None:
+                portfolio_curve.index = portfolio_curve.index.tz_localize(None)
+            
+            if cac40_raw.index.tz is not None:
+                cac40_raw.index = cac40_raw.index.tz_localize(None)
+            # ==============================================================================
+
             start_date = portfolio_curve.index[0]
             cac40_aligned = cac40_raw['Close'][start_date:]
             
-            # Base 100
             if not cac40_aligned.empty:
                 cac40_norm = (cac40_aligned / cac40_aligned.iloc[0]) * 100
                 
-                # KPIs
                 perf_pf = portfolio_curve.iloc[-1] - 100
                 perf_cac = cac40_norm.iloc[-1] - 100
                 
@@ -361,4 +331,4 @@ elif page == "🔙 Backtest & Performance":
             else:
                 st.error("Erreur alignement dates CAC40.")
         else:
-            st.error("Impossible de construire le backtest. Une des actions bloque le téléchargement (souvent les tickers de Londres .L).")
+            st.error("Impossible de construire le backtest. Données manquantes.")
