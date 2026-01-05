@@ -4,13 +4,13 @@ import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
 import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime
 
 # -----------------------------------------------------------------------------
 # CONFIGURATION DE LA PAGE
 # -----------------------------------------------------------------------------
 st.set_page_config(
-    page_title="BoussiBroke Investissement ",
+    page_title="BoussiBroke Investissement",
     page_icon="📈",
     layout="wide"
 )
@@ -42,22 +42,23 @@ st.markdown("---")
 # -----------------------------------------------------------------------------
 
 TICKERS = {
-   "🇺🇸 Nasdaq 100": "^NDX",
-    "🇺🇸 Apple": "AAPL",
-    "🇺🇸 Microsoft": "MSFT",
+    "🇺🇸 Nasdaq 100 (iShares USD)": "CNDX.L", 
     "🇺🇸 Berkshire Hathaway B": "BRK-B",
     "🇺🇸 Take-Two Interactive": "TTWO",
-    "🇺🇸 Dow Jones Ind.": "^DJI",
-    "🇺🇸 Nasdaq Levier x3 (TQQQ)": "TQQQ",
-    "🌍 MSCI World ex-USA": "ACWX",
-    "🇫🇷 Air Liquide": "AI.PA",
     "🇫🇷 Saint-Gobain": "SGO.PA",
-    "🇫🇷 Véolia": "VIE.PA",
-    "🇮🇳 MSCI India (Amundi)": "CIN.PA",
     "🇬🇧 Burberry Group": "BRBY.L",
-    "🇪🇺 Future of Defense": "NATO.PA" 
+    "🇮🇳 MSCI India (Amundi)": "CIN.PA",
+    "🇺🇸 Apple": "AAPL",
+    "🇺🇸 Dow Jones Ind. (iShares)": "DIA",
+    "🇺🇸 Microsoft": "MSFT",
+    "🇪🇺 Future of Defense (HANetf)": "NATO.PA",
+    "🇫🇷 Air Liquide": "AI.PA",
+    "🇺🇸 Nasdaq Levier x3 (TQQQ)": "TQQQ",
+    "🇫🇷 Véolia": "VIE.PA",
+    "🌍 World ex-USA (Xtrackers)": "ACWX"
 }
 
+# Panier complet "BoussiBroke" pour la simulation
 STRATEGY_ALLOCATION = {
     "Nasdaq 100": {"ticker": "CNDX.L", "poids": 0.07},
     "Berkshire": {"ticker": "BRK-B", "poids": 0.07},
@@ -91,7 +92,6 @@ def get_stock_data(ticker_symbol, period="5y"):
         return None
 
 def calculate_dca(initial, periodic, frequency, rate, years):
-    months = years * 12
     periods_per_year = 52 if frequency == "Hebdomadaire" else 365
     rate_periodic = (1 + rate/100)**(1/periods_per_year) - 1
     
@@ -140,8 +140,9 @@ for news in news_items:
 # -----------------------------------------------------------------------------
 if page == "Suivi des Marchés":
     st.header("📊 Suivi des Marchés Clés")
-selected_indices = st.multiselect("Quels indices voulez-vous afficher ?", list(TICKERS.keys()), default=["🇺🇸 Apple", "🇫🇷 Air Liquide"])    
-  
+    # C'est ici que j'ai corrigé les valeurs par défaut pour qu'elles matchent ta liste
+    selected_indices = st.multiselect("Quels indices voulez-vous afficher ?", list(TICKERS.keys()), default=["🇺🇸 Apple", "🇫🇷 Air Liquide"])
+    
     if selected_indices:
         cols = st.columns(len(selected_indices))
         fig = go.Figure()
@@ -154,8 +155,13 @@ selected_indices = st.multiselect("Quels indices voulez-vous afficher ?", list(T
                 last_price = data['Close'].iloc[-1]
                 prev_price = data['Close'].iloc[-2]
                 day_change = ((last_price - prev_price) / prev_price) * 100
-                start_year_price = data[data.index.year == datetime.now().year]['Close'].iloc[0]
-                ytd_change = ((last_price - start_year_price) / start_year_price) * 100
+                
+                # Gestion sécurisée du début d'année
+                try:
+                    start_year_price = data[data.index.year == datetime.now().year]['Close'].iloc[0]
+                    ytd_change = ((last_price - start_year_price) / start_year_price) * 100
+                except:
+                    ytd_change = 0.0
 
                 with cols[idx]:
                     st.metric(label=name, value=f"{last_price:,.2f}", delta=f"{day_change:.2f}% (Jour)")
@@ -211,25 +217,33 @@ elif page == "Simulateur Plan (DCA)":
 # PAGE 3 : MA STRATÉGIE VS RÉALITÉ
 # -----------------------------------------------------------------------------
 elif page == "Ma Stratégie vs Réalité":
-    st.header("🛡️ Testez ma recommandation (80% Actions / 20% Oblig)")
+    st.header("🛡️ Test du Panier BoussiBroke")
+    st.markdown("On simule ici si vous aviez investi dans toutes vos valeurs favorites il y a 1 an.")
     invest_amount = st.number_input("Montant à simuler (€)", value=10000)
     
     if st.button("Lancer la simulation"):
-        with st.spinner("Calcul..."):
+        with st.spinner("Calcul des performances..."):
             try:
-                ticker_actions = STRATEGY_ALLOCATION["Actions (MSCI World)"]["ticker"]
-                data_actions = get_stock_data(ticker_actions, period="1y")['Close']
-                ticker_oblig = STRATEGY_ALLOCATION["Obligations (US Agg)"]["ticker"]
-                data_oblig = get_stock_data(ticker_oblig, period="1y")['Close']
-
-                combined = pd.concat([data_actions, data_oblig], axis=1).dropna()
-                combined.columns = ["Actions", "Obligations"]
-                combined["Perf_Actions"] = combined["Actions"] / combined["Actions"].iloc[0]
-                combined["Perf_Obligations"] = combined["Obligations"] / combined["Obligations"].iloc[0]
+                combined = pd.DataFrame()
                 
-                part_actions = invest_amount * STRATEGY_ALLOCATION["Actions (MSCI World)"]["poids"]
-                part_oblig = invest_amount * STRATEGY_ALLOCATION["Obligations (US Agg)"]["poids"]
-                combined["Valeur_Portefeuille"] = (part_actions * combined["Perf_Actions"]) + (part_oblig * combined["Perf_Obligations"])
+                # On boucle sur toutes les actions de la stratégie
+                for name, details in STRATEGY_ALLOCATION.items():
+                    data = get_stock_data(details["ticker"], period="1y")
+                    if data is not None and not data.empty:
+                        # Normalisation (Perf relative)
+                        perf = data['Close'] / data['Close'].iloc[0]
+                        
+                        # Pondération
+                        weighted_val = (invest_amount * details["poids"]) * perf
+                        
+                        if combined.empty:
+                            combined = pd.DataFrame(weighted_val)
+                            combined.columns = ["Valeur_Portefeuille"]
+                        else:
+                            # On ajoute au total (en gérant les index de dates)
+                            combined["Valeur_Portefeuille"] = combined["Valeur_Portefeuille"].add(weighted_val, fill_value=0)
+
+                combined = combined.dropna()
                 
                 final_pf_value = combined["Valeur_Portefeuille"].iloc[-1]
                 perf_abs = final_pf_value - invest_amount
@@ -242,4 +256,4 @@ elif page == "Ma Stratégie vs Réalité":
                 st.plotly_chart(fig_strat, use_container_width=True)
 
             except Exception as e:
-                st.error("Erreur de récupération des données.")
+                st.error(f"Erreur de calcul : {e}")
