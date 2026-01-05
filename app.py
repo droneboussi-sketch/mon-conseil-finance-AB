@@ -14,7 +14,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Titre principal et CSS personnalisé (CORRIGÉ)
+# CSS Personnalisé
 st.markdown("""
 <style>
     .main {
@@ -33,16 +33,16 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("📈 BoussiBroke Investissement")
-st.markdown("Bienvenue ! Voici les conseils d'un amateur boursier qui fait ça sur son temps libre.")
+st.markdown("Bienvenue ! Voici les conseils d'un amateur boursier qui investit des fractions d'actions sur son temps libre.")
 st.markdown("---")
 
 # -----------------------------------------------------------------------------
-# DONNÉES : TON PLAN D'INVESTISSEMENT
+# DONNÉES
 # -----------------------------------------------------------------------------
 
-# Liste pour le Tracker (Affichage des cours)
+# Pour le Tracker (Affichage des cours)
 TICKERS_TRACKER = {
-    "🇺🇸 Nasdaq 100 (iShares)": "CNDX.L", 
+    "🇺🇸 Nasdaq 100": "CNDX.L", 
     "🇺🇸 Berkshire Hathaway B": "BRK-B",
     "🇺🇸 Take-Two Interactive": "TTWO",
     "🇫🇷 Saint-Gobain": "SGO.PA",
@@ -58,27 +58,24 @@ TICKERS_TRACKER = {
     "🌍 World ex-USA": "ACWX"
 }
 
-# Ton Plan d'Achat (Ticker, Quantité par mois approximative, Devise)
-# Calcul fréquence : 1/semaine = 4.33/mois. 1/2semaines = 2.16/mois.
+# TON PLAN D'INVESTISSEMENT (En Euros fixes)
+# coeff_mensuel permet de ramener la fréquence à un mois (ex: hebdo = x4.33)
 MY_PLAN = [
-    {"nom": "Nasdaq 100", "ticker": "CNDX.L", "qt_mois": 4.33, "devise": "USD"},  # 1/semaine
-    {"nom": "Berkshire B", "ticker": "BRK-B", "qt_mois": 8.66, "devise": "USD"},   # 2/semaine
-    {"nom": "Take-Two", "ticker": "TTWO", "qt_mois": 13.0, "devise": "USD"},       # 3/semaine
-    {"nom": "Saint-Gobain", "ticker": "SGO.PA", "qt_mois": 4.33, "devise": "EUR"}, # 2 toutes les 2 semaines (~4/mois)
-    {"nom": "Burberry", "ticker": "BRBY.L", "qt_mois": 4.33, "devise": "GBP"},     # 1/semaine
-    {"nom": "MSCI India", "ticker": "CIN.PA", "qt_mois": 2.16, "devise": "EUR"},   # 1 toutes les 2 semaines
-    {"nom": "Apple", "ticker": "AAPL", "qt_mois": 4.33, "devise": "USD"},          # 1/semaine
-    {"nom": "Dow Jones", "ticker": "DIA", "qt_mois": 4.33, "devise": "USD"},       # 2 toutes les 2 semaines
-    {"nom": "Microsoft", "ticker": "MSFT", "qt_mois": 2.0, "devise": "USD"},       # 1 deux fois par mois
-    {"nom": "Future Defense", "ticker": "NATO.PA", "qt_mois": 1.0, "devise": "EUR"}, # Supposé 1/mois
-    {"nom": "Air Liquide", "ticker": "AI.PA", "qt_mois": 1.0, "devise": "EUR"},    # 1/mois
-    {"nom": "Nasdaq x3", "ticker": "TQQQ", "qt_mois": 2.0, "devise": "USD"},       # 2/mois
-    {"nom": "Véolia", "ticker": "VIE.PA", "qt_mois": 4.0, "devise": "EUR"},        # 2 deux fois par mois
-    {"nom": "World ex-USA", "ticker": "ACWX", "qt_mois": 3.0, "devise": "USD"},    # 3 par mois
+    {"nom": "Nasdaq 100", "montant": 1, "freq": "1x / semaine", "coeff": 4.33},
+    {"nom": "Berkshire B", "montant": 2, "freq": "1x / semaine", "coeff": 4.33},
+    {"nom": "Take-Two", "montant": 3, "freq": "1x / semaine", "coeff": 4.33},
+    {"nom": "Saint-Gobain", "montant": 2, "freq": "1x / 2 semaines", "coeff": 2.16},
+    {"nom": "Burberry", "montant": 1, "freq": "1x / semaine", "coeff": 4.33},
+    {"nom": "MSCI India", "montant": 1, "freq": "1x / 2 semaines", "coeff": 2.16},
+    {"nom": "Apple", "montant": 1, "freq": "1x / semaine", "coeff": 4.33},
+    {"nom": "Dow Jones", "montant": 2, "freq": "1x / 2 semaines", "coeff": 2.16},
+    {"nom": "Microsoft", "montant": 1, "freq": "2x / mois", "coeff": 2.0},
+    {"nom": "Future Defense", "montant": 1, "freq": "1x / mois (Est.)", "coeff": 1.0}, # Supposé 1/mois
+    {"nom": "Air Liquide", "montant": 1, "freq": "1x / mois", "coeff": 1.0},
+    {"nom": "Nasdaq x3", "montant": 2, "freq": "1x / mois", "coeff": 1.0},
+    {"nom": "Véolia", "montant": 2, "freq": "2x / mois", "coeff": 2.0},
+    {"nom": "World ex-USA", "montant": 3, "freq": "1x / mois", "coeff": 1.0},
 ]
-
-# Taux de change fixes (Approximation pour la rapidité)
-FX_RATES = {"EUR": 1.0, "USD": 0.95, "GBP": 1.20} 
 
 # -----------------------------------------------------------------------------
 # FONCTIONS
@@ -93,35 +90,27 @@ def get_stock_data(ticker_symbol, period="5y"):
         return history
     except: return None
 
-@st.cache_data(ttl=3600)
-def get_current_price(ticker):
-    """Récupère le dernier prix pour le calcul du plan."""
-    try:
-        data = yf.Ticker(ticker).history(period="1d")
-        if not data.empty:
-            return data['Close'].iloc[-1]
-        return 0.0
-    except:
-        return 0.0
-
-def calculate_dca(initial, periodic, years, rate):
-    months = years * 12
-    rate_periodic = (1 + rate/100)**(1/12) - 1
+def calculate_dca(initial, monthly_amount, years, rate):
+    """Calcule l'intérêt composé avec apport mensuel fixe"""
+    rate_monthly = (1 + rate/100)**(1/12) - 1
     
     data = []
     current_portfolio = initial
     total_invested = initial
     
+    # On génère les points année par année
     for year in range(years + 1):
         data.append({
             "Année": year,
             "Total Investi": round(total_invested, 2),
             "Valeur Portefeuille": round(current_portfolio, 2)
         })
+        
+        # Simulation des 12 mois de l'année suivante
         if year < years:
             for _ in range(12):
-                current_portfolio = current_portfolio * (1 + rate_periodic) + periodic
-                total_invested += periodic
+                current_portfolio = current_portfolio * (1 + rate_monthly) + monthly_amount
+                total_invested += monthly_amount
                 
     return pd.DataFrame(data)
 
@@ -129,7 +118,6 @@ def calculate_dca(initial, periodic, years, rate):
 # SIDEBAR
 # -----------------------------------------------------------------------------
 st.sidebar.header("Navigation")
-# On enlève le 3ème onglet ici
 page = st.sidebar.radio("Aller vers :", ["Suivi des Marchés", "Simulateur Plan BoussiBroke"])
 
 st.sidebar.markdown("---")
@@ -153,6 +141,8 @@ for news in news_items:
 # -----------------------------------------------------------------------------
 if page == "Suivi des Marchés":
     st.header("📊 Suivi des Cours")
+    st.markdown("Visualisez l'évolution des actions de votre plan.")
+    
     selected_indices = st.multiselect("Sélectionner les actifs :", list(TICKERS_TRACKER.keys()), default=["🇺🇸 Apple", "🇫🇷 Air Liquide"])
     
     if selected_indices:
@@ -174,6 +164,7 @@ if page == "Suivi des Marchés":
                 except: ytd_change = 0.0
 
                 with cols[idx]:
+                    # Note: Le prix affiché est celui de l'action entière
                     st.metric(label=name, value=f"{last_price:,.2f}", delta=f"{day_change:.2f}%")
                     st.caption(f"YTD: {ytd_change:+.2f}%")
 
@@ -181,10 +172,10 @@ if page == "Suivi des Marchés":
                     base_val = data['Close'].iloc[0]
                     normalized = (data['Close'] / base_val) * 100
                     fig.add_trace(go.Scatter(x=data.index, y=normalized, name=name))
-                    y_axis_title = "Base 100"
+                    y_axis_title = "Base 100 (Comparatif)"
                 else:
                     fig.add_trace(go.Scatter(x=data.index, y=data['Close'], name=name))
-                    y_axis_title = "Prix"
+                    y_axis_title = "Prix de l'action"
 
         fig.update_layout(title="Comparaison (5 ans)", yaxis_title=y_axis_title, height=500)
         st.plotly_chart(fig, use_container_width=True)
@@ -194,27 +185,18 @@ if page == "Suivi des Marchés":
 # -----------------------------------------------------------------------------
 elif page == "Simulateur Plan BoussiBroke":
     st.header("🚀 Projection du Plan d'Achat")
-    st.markdown("Cette page calcule automatiquement le coût mensuel de ton plan d'achat (Apple 1/sem, etc.) au prix d'aujourd'hui et projette la richesse future.")
+    st.markdown("Simulation basée sur des investissements en **fractions d'actions** (sommes fixes en Euros).")
 
-    # 1. Calcul du coût mensuel du plan
+    # 1. Calcul du total mensuel
     total_monthly_investment = 0
-    details_text = ""
-
-    # On utilise un expander pour pas prendre toute la place si on veut voir les détails
-    with st.expander("Voir le détail du coût mensuel calculé"):
-        st.write("Calcul basé sur les derniers cours de clôture :")
-        for item in MY_PLAN:
-            price = get_current_price(item["ticker"])
-            
-            # Correction spécifique pour Londres (souvent en pence, il faut diviser par 100)
-            if item["ticker"].endswith(".L"):
-                price = price / 100
-
-            cost_native = price * item["qt_mois"]
-            cost_eur = cost_native * FX_RATES.get(item["devise"], 1.0)
-            
-            total_monthly_investment += cost_eur
-            st.write(f"- **{item['nom']}** ({item['qt_mois']:.1f}/mois) : Prix {price:.2f} {item['devise']} ➡️ Coût mensuel : {cost_eur:.2f} €")
+    
+    with st.expander("📝 Voir le détail de votre plan mensuel"):
+        st.table(pd.DataFrame(MY_PLAN)[['nom', 'montant', 'freq']].rename(columns={'nom': 'Action', 'montant': 'Montant (€)', 'freq': 'Fréquence'}))
+        
+    # Calcul mathématique simple
+    for item in MY_PLAN:
+        monthly_cost = item["montant"] * item["coeff"]
+        total_monthly_investment += monthly_cost
 
     st.markdown("---")
     
@@ -223,12 +205,11 @@ elif page == "Simulateur Plan BoussiBroke":
     
     with col1:
         st.subheader("Paramètres")
-        st.info(f"💰 **Investissement Mensuel Calculé : {int(total_monthly_investment)} €**")
+        st.info(f"💰 **Investissement Mensuel Total : {total_monthly_investment:.2f} €**")
         
-        # On laisse l'utilisateur ajuster si besoin, mais par défaut c'est le calcul
-        monthly_inv = st.number_input("Montant investi par mois (€)", value=int(total_monthly_investment))
+        monthly_inv = st.number_input("Arrondi mensuel (€)", value=int(total_monthly_investment))
         initial_inv = st.number_input("Capital de départ (€)", value=0)
-        rate = st.slider("Rendement annuel espéré (%)", 5, 15, 9) # 9% car beaucoup d'actions US/Tech
+        rate = st.slider("Rendement annuel espéré (%)", 5, 15, 9) 
         years = st.slider("Durée (Années)", 5, 30, 15)
 
     # 3. Calculs et Graphique
@@ -249,7 +230,5 @@ elif page == "Simulateur Plan BoussiBroke":
         fig_sim.add_trace(go.Scatter(x=df_sim["Année"], y=df_sim["Valeur Portefeuille"], fill='tozeroy', name='Valeur Portefeuille', line=dict(color='#00CC96')))
         fig_sim.add_trace(go.Scatter(x=df_sim["Année"], y=df_sim["Total Investi"], fill='tozeroy', name='Argent Sorti', line=dict(color='#636EFA')))
         
-        fig_sim.update_layout(title=f"Projection sur {years} ans", xaxis_title="Années", yaxis_title="Montant (€)")
+        fig_sim.update_layout(title=f"Projection de richesse sur {years} ans", xaxis_title="Années", yaxis_title="Montant (€)")
         st.plotly_chart(fig_sim, use_container_width=True)
-
-    st.warning("Note : Le montant mensuel est une estimation basée sur les prix d'aujourd'hui. Dans la réalité, si les actions montent, le coût mensuel pour acheter le même nombre d'actions augmentera aussi.")
