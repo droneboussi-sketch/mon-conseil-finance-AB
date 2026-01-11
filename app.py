@@ -16,12 +16,14 @@ st.set_page_config(
     layout="wide"
 )
 
+# CSS CORRIGÉ POUR LE MODE SOMBRE
+# On force la couleur du texte (#2c3e50 ou #000000) avec !important
 st.markdown("""
 <style>
     .main { background-color: #f5f5f5; }
     h1 { color: #2c3e50; }
     
-    /* Cartes Metrics */
+    /* --- METRIQUES (Cartes avec prix) --- */
     div[data-testid="stMetric"] {
         background-color: #ffffff;
         padding: 15px;
@@ -29,10 +31,16 @@ st.markdown("""
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         border: 1px solid #e0e0e0;
     }
-    div[data-testid="stMetric"] label { color: #000000 !important; }
-    div[data-testid="stMetric"] div[data-testid="stMetricValue"] { color: #000000 !important; }
+    /* Force le titre en noir */
+    div[data-testid="stMetric"] label { 
+        color: #000000 !important; 
+    }
+    /* Force la valeur en noir */
+    div[data-testid="stMetric"] div[data-testid="stMetricValue"] { 
+        color: #000000 !important; 
+    }
     
-    /* Sidebar News */
+    /* --- SIDEBAR NEWS --- */
     .news-card {
         background-color: white;
         padding: 10px;
@@ -43,16 +51,21 @@ st.markdown("""
     }
     a.news-link {
         text-decoration: none;
-        color: #2c3e50;
+        color: #2c3e50 !important; /* Force le lien en foncé */
         font-weight: bold;
         font-size: 14px;
         display: block;
         margin-bottom: 4px;
     }
-    a.news-link:hover { color: #00CC96; }
-    .news-meta { font-size: 11px; color: #888; display: flex; justify-content: space-between; }
+    a.news-link:hover { color: #00CC96 !important; }
+    .news-meta { 
+        font-size: 11px; 
+        color: #666666 !important; /* Force le gris foncé */
+        display: flex; 
+        justify-content: space-between; 
+    }
 
-    /* Conseils */
+    /* --- CONSEILS (Cartes Avis) --- */
     .advice-card {
         background-color: white;
         padding: 20px;
@@ -60,23 +73,31 @@ st.markdown("""
         border-radius: 10px;
         border-top: 5px solid #636EFA;
         box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        color: #2c3e50 !important; /* Force le texte global en foncé */
+    }
+    .advice-card h3 {
+        color: #2c3e50 !important; /* Titre en foncé */
+        margin-top: 0;
+    }
+    .advice-card p {
+        color: #333333 !important; /* Paragraphe en gris foncé */
     }
     .advice-date {
-        color: #666;
+        color: #666666 !important;
         font-size: 0.9em;
         font-style: italic;
         margin-bottom: 10px;
     }
     .advice-tag {
         background-color: #e0f2f1;
-        color: #00695c;
+        color: #00695c !important;
         padding: 2px 8px;
         border-radius: 12px;
         font-size: 0.8em;
         font-weight: bold;
     }
 
-    /* FOOTER AFFILIATION (NOUVEAU) */
+    /* --- FOOTER AFFILIATION --- */
     .footer-cta {
         margin-top: 50px;
         padding: 30px;
@@ -85,14 +106,18 @@ st.markdown("""
         text-align: center;
         border: 1px solid #d1d5db;
         box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        color: #111111 !important; /* Force texte noir */
     }
     .footer-cta h3 {
-        color: #111;
+        color: #111111 !important;
         margin-bottom: 10px;
+    }
+    .footer-cta p {
+        color: #333333 !important;
     }
     .cta-button {
         display: inline-block;
-        background-color: #111; /* Couleur Trade Republic (Noir) */
+        background-color: #111; 
         color: white !important;
         padding: 12px 25px;
         border-radius: 50px;
@@ -109,7 +134,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("📈 BoussiBroke Investissement")
-st.markdown("Bienvenue ! Données financières ajustées, actualités en direct et mes analyses personnelles.")
+st.markdown("Bienvenue ! Données financières ajustées (dividendes inclus) et actualités en direct.")
 st.markdown("---")
 
 # -----------------------------------------------------------------------------
@@ -152,7 +177,6 @@ TICKERS_TRACKER = {
     "🇺🇸 Alphabet (Google)": "GOOGL"
 }
 
-# TES MONTANTS MIS À JOUR
 DEFAULT_PLAN = [
     {"Action": "Nasdaq 100", "Ticker": "CNDX.L", "Montant (€)": 5, "Fréquence": "1x / semaine"},
     {"Action": "Berkshire B", "Ticker": "BRK-B", "Montant (€)": 3, "Fréquence": "1x / semaine"},
@@ -429,7 +453,6 @@ elif page == "🔙 Backtest & Performance":
         sp500_raw = get_stock_data("^GSPC", period="5y")
         
         if portfolio_curve is not None and sp500_raw is not None:
-            # Clean TZ
             if portfolio_curve.index.tz is not None: portfolio_curve.index = portfolio_curve.index.tz_localize(None)
             if sp500_raw.index.tz is not None: sp500_raw.index = sp500_raw.index.tz_localize(None)
 
@@ -483,7 +506,7 @@ st.markdown("""
 <div class="footer-cta">
     <h3>🚀 Passez à l'action !</h3>
     <p>Pour mettre en place cette stratégie d'investissement programmée (DCA) sans frais, j'utilise <strong>Trade Republic</strong>.</p>
-    <a href="https://trade.republic.com" target="_blank" class="cta-button">
+    <a href="https://refnocode.trade.re/nvmzgmsh" target="_blank" class="cta-button">
         Ouvrir un compte & recevoir une action offerte 🎁
     </a>
     <p style="font-size: 12px; margin-top: 15px; color: #666;">
