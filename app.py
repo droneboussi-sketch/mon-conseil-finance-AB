@@ -3,6 +3,8 @@ import yfinance as yf
 import pandas as pd
 import plotly.graph_objects as go
 import numpy as np
+import requests
+import xml.etree.ElementTree as ET
 from datetime import datetime
 
 # -----------------------------------------------------------------------------
@@ -14,7 +16,6 @@ st.set_page_config(
     layout="wide"
 )
 
-# Correction du CSS
 st.markdown("""
 <style>
     .main { background-color: #f5f5f5; }
@@ -52,7 +53,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("📈 BoussiBroke Investissement")
-st.markdown("Bienvenue ! Données financières ajustées (dividendes inclus) et connectées en direct.")
+st.markdown("Bienvenue ! Données financières ajustées et actualités en direct.")
 st.markdown("---")
 
 # -----------------------------------------------------------------------------
@@ -109,43 +110,63 @@ DEFAULT_PLAN = [
 ]
 
 # -----------------------------------------------------------------------------
-# 3. FONCTIONS UTILITAIRES (OPTIMISÉES PRÉCISION)
+# 3. FONCTIONS UTILITAIRES
 # -----------------------------------------------------------------------------
 
-# Cache réduit à 600s (10 min) pour avoir des données fraiches sans bloquer l'API
 @st.cache_data(ttl=600)
 def get_stock_data(ticker_symbol, period="5y"):
     try:
         stock = yf.Ticker(ticker_symbol)
-        # auto_adjust=True permet d'avoir le cours ajusté des dividendes et splits
         history = stock.history(period=period, auto_adjust=True)
         if history.empty: return None
         return history
     except: return None
 
-@st.cache_data(ttl=300) # News très fraiches (5 min)
+@st.cache_data(ttl=900) # Rafraîchissement automatique toutes les 15 minutes
 def get_market_news():
+    """
+    Récupère les actualités via le flux RSS de Google Actualités (Finance France).
+    Beaucoup plus robuste que yfinance.
+    """
+    # URL du flux RSS Google News pour "Bourse & Économie" en France
+    rss_url = "https://news.google.com/rss/search?q=Bourse+Economie&hl=fr&gl=FR&ceid=FR:fr"
+    
     news_list = []
-    tickers_news = ["^FCHI", "^GSPC", "EURUSD=X", "CL=F"]
     try:
-        for symbol in tickers_news:
-            t = yf.Ticker(symbol)
-            batch = t.news
-            if batch:
-                for item in batch:
-                    title = item.get('title', '')
-                    link = item.get('link', '#')
-                    publisher = item.get('publisher', 'Bourse')
-                    timestamp = item.get('providerPublishTime', 0)
-                    if title and not any(n['title'] == title for n in news_list):
-                        news_list.append({'title': title, 'link': link, 'publisher': publisher, 'timestamp': timestamp})
-        news_list.sort(key=lambda x: x['timestamp'], reverse=True)
-        return news_list[:8] 
-    except: return []
+        # On se fait passer pour un navigateur classique pour éviter les blocages
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+        response = requests.get(rss_url, headers=headers, timeout=5)
+        
+        if response.status_code == 200:
+            # Analyse du XML
+            root = ET.fromstring(response.content)
+            # On parcourt les éléments 'item' du flux
+            for item in root.findall('./channel/item')[:8]: # On garde les 8 premiers
+                title = item.find('title').text if item.find('title') is not None else "Pas de titre"
+                link = item.find('link').text if item.find('link') is not None else "#"
+                pubDate = item.find('pubDate').text if item.find('pubDate') is not None else ""
+                
+                # Nettoyage du titre (Google ajoute souvent "- Source" à la fin)
+                source_name = "Actualité"
+                if " - " in title:
+                    parts = title.rsplit(" - ", 1)
+                    title = parts[0]
+                    source_name = parts[1]
+                
+                news_list.append({
+                    'title': title,
+                    'link': link,
+                    'publisher': source_name,
+                    'date': pubDate
+                })
+        return news_list
+    except Exception as e:
+        # En cas d'erreur, on retourne une liste vide sans faire planter l'app
+        return []
 
 @st.cache_data(ttl=600)
 def compute_backtest_robust(plan_df, years=5):
-    """Backtest utilisant Adjusted Close pour la vraie performance."""
+    """Backtest robuste avec Adjusted Close."""
     plan_df["Budget_Ligne"] = plan_df["Montant (€)"] * plan_df["Fréquence"].map(FREQ_MAP).fillna(1.0)
     total_budget = plan_df["Budget_Ligne"].sum()
     if total_budget == 0: return None
@@ -155,19 +176,13 @@ def compute_backtest_robust(plan_df, years=5):
     tickers_api = list(set(tickers + ["EURUSD=X", "EURGBP=X"]))
 
     try:
-        # auto_adjust=True est CRUCIAL pour la justesse historique (dividendes inclus)
         raw_data = yf.download(tickers_api, period=f"{years}y", progress=False, auto_adjust=True)
-        
-        # Gestion colonne
         if isinstance(raw_data.columns, pd.MultiIndex):
-            # Comme auto_adjust=True, yfinance renvoie souvent directement 'Close' qui est déjà ajusté
-            # ou parfois 'Adj Close' explicite.
             if 'Close' in raw_data.columns.get_level_values(0): data = raw_data['Close']
             elif 'Adj Close' in raw_data.columns.get_level_values(0): data = raw_data['Adj Close']
             else: data = raw_data.droplevel(0, axis=1)
         else:
             data = raw_data['Close'] if 'Close' in raw_data else raw_data
-        
         data = data.ffill()
     except: return None
 
@@ -250,7 +265,10 @@ if news_data:
             unsafe_allow_html=True
         )
 else:
-    st.sidebar.caption("Actualisation...")
+    st.sidebar.caption("Chargement des actualités...")
+    if st.sidebar.button("Réessayer"):
+        st.cache_data.clear()
+
 st.sidebar.markdown("---")
 
 # -----------------------------------------------------------------------------
@@ -259,7 +277,6 @@ st.sidebar.markdown("---")
 if page == "Suivi des Marchés":
     st.header("📊 Suivi des Cours en Direct")
     
-    # Bouton pour forcer le rafraichissement
     if st.button("🔄 Actualiser les données maintenant"):
         st.cache_data.clear()
         
@@ -328,7 +345,7 @@ elif page == "Simulateur Futur":
         st.dataframe(df_proj.style.format({"Total Versé (€)": "{:,.0f} €", "Valeur Estimée (€)": "{:,.0f} €", "Plus-Value (€)": "{:+,.0f} €"}), use_container_width=True, hide_index=True)
 
 # -----------------------------------------------------------------------------
-# 7. PAGE : BACKTEST (S&P500 + ADJUSTED CLOSE)
+# 7. PAGE : BACKTEST (S&P500)
 # -----------------------------------------------------------------------------
 elif page == "🔙 Backtest & Performance":
     st.header("⏳ Voyage dans le temps (Backtest)")
@@ -339,13 +356,14 @@ elif page == "🔙 Backtest & Performance":
         df_bt = pd.DataFrame(DEFAULT_PLAN)
         portfolio_curve = compute_backtest_robust(df_bt, years=5)
         
-        # Benchmark S&P 500 Ajusté
+        # Benchmark S&P 500
         sp500_raw = get_stock_data("^GSPC", period="5y")
         
         if portfolio_curve is not None and sp500_raw is not None:
+            # === CORRECTIF TIMEZONE (INDISPENSABLE) ===
             if portfolio_curve.index.tz is not None: portfolio_curve.index = portfolio_curve.index.tz_localize(None)
             if sp500_raw.index.tz is not None: sp500_raw.index = sp500_raw.index.tz_localize(None)
-
+            
             start_date = portfolio_curve.index[0]
             sp500_aligned = sp500_raw['Close'][start_date:]
             
@@ -364,5 +382,5 @@ elif page == "🔙 Backtest & Performance":
                 fig.add_trace(go.Scatter(x=sp500_norm.index, y=sp500_norm, name='S&P 500', line=dict(color='gray', dash='dot')))
                 fig.update_layout(title="Performance Historique (Base 100)", yaxis_title="Base 100")
                 st.plotly_chart(fig, use_container_width=True)
-            else: st.error("Erreur alignement dates.")
+            else: st.error("Erreur alignement dates S&P 500.")
         else: st.error("Impossible de construire le backtest. Données manquantes.")
