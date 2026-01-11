@@ -53,7 +53,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("📈 BoussiBroke Investissement")
-st.markdown("Bienvenue ! Données financières ajustées et actualités en direct.")
+st.markdown("Bienvenue ! Données financières ajustées (dividendes inclus) et actualités en direct.")
 st.markdown("---")
 
 # -----------------------------------------------------------------------------
@@ -68,13 +68,16 @@ FREQ_MAP = {
     "3x / mois": 3.0
 }
 
+# Mapping devises
 CURRENCY_MAP = {
     "CNDX.L": "USD", "BRK-B": "USD", "TTWO": "USD", "SGO.PA": "EUR",
     "BRBY.L": "GBP", "CIN.PA": "EUR", "AAPL": "USD", "DIA": "USD",
     "MSFT": "USD", "NATO.PA": "EUR", "AI.PA": "EUR", "TQQQ": "USD",
-    "VIE.PA": "EUR", "ACWX": "USD"
+    "VIE.PA": "EUR", "ACWX": "USD",
+    "PLTR": "USD", "GLD": "USD", "GOOGL": "USD"
 }
 
+# Liste Tracker
 TICKERS_TRACKER = {
     "🇺🇸 Nasdaq 100 (iShares)": "CNDX.L", 
     "🇺🇸 Berkshire Hathaway B": "BRK-B",
@@ -89,9 +92,13 @@ TICKERS_TRACKER = {
     "🇫🇷 Air Liquide": "AI.PA",
     "🇺🇸 Nasdaq Levier x3": "TQQQ",
     "🇫🇷 Véolia": "VIE.PA",
-    "🌍 World ex-USA": "ACWX"
+    "🌍 World ex-USA": "ACWX",
+    "🇺🇸 Palantir": "PLTR",
+    "🟡 Gold (Or USD)": "GLD",
+    "🇺🇸 Alphabet (Google)": "GOOGL"
 }
 
+# PLAN MIS À JOUR AVEC TES NOUVEAUX MONTANTS
 DEFAULT_PLAN = [
     {"Action": "Nasdaq 100", "Ticker": "CNDX.L", "Montant (€)": 5, "Fréquence": "1x / semaine"},
     {"Action": "Berkshire B", "Ticker": "BRK-B", "Montant (€)": 3, "Fréquence": "1x / semaine"},
@@ -107,6 +114,10 @@ DEFAULT_PLAN = [
     {"Action": "Nasdaq x3", "Ticker": "TQQQ", "Montant (€)": 9, "Fréquence": "1x / mois"},
     {"Action": "Véolia", "Ticker": "VIE.PA", "Montant (€)": 2, "Fréquence": "2x / mois"},
     {"Action": "World ex-USA", "Ticker": "ACWX", "Montant (€)": 7, "Fréquence": "1x / mois"},
+    # --- Les 3 ajouts précédents conservés ---
+    {"Action": "Palantir", "Ticker": "PLTR", "Montant (€)": 3, "Fréquence": "1x / semaine"},
+    {"Action": "Gold (Or USD)", "Ticker": "GLD", "Montant (€)": 3, "Fréquence": "1x / semaine"},
+    {"Action": "Alphabet (Google)", "Ticker": "GOOGL", "Montant (€)": 3, "Fréquence": "1x / semaine"},
 ]
 
 # -----------------------------------------------------------------------------
@@ -122,47 +133,29 @@ def get_stock_data(ticker_symbol, period="5y"):
         return history
     except: return None
 
-@st.cache_data(ttl=900) # Rafraîchissement automatique toutes les 15 minutes
+@st.cache_data(ttl=900) 
 def get_market_news():
-    """
-    Récupère les actualités via le flux RSS de Google Actualités (Finance France).
-    Beaucoup plus robuste que yfinance.
-    """
-    # URL du flux RSS Google News pour "Bourse & Économie" en France
+    """Flux RSS Google News Finance."""
     rss_url = "https://news.google.com/rss/search?q=Bourse+Economie&hl=fr&gl=FR&ceid=FR:fr"
-    
     news_list = []
     try:
-        # On se fait passer pour un navigateur classique pour éviter les blocages
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
         response = requests.get(rss_url, headers=headers, timeout=5)
-        
         if response.status_code == 200:
-            # Analyse du XML
             root = ET.fromstring(response.content)
-            # On parcourt les éléments 'item' du flux
-            for item in root.findall('./channel/item')[:8]: # On garde les 8 premiers
+            for item in root.findall('./channel/item')[:8]:
                 title = item.find('title').text if item.find('title') is not None else "Pas de titre"
                 link = item.find('link').text if item.find('link') is not None else "#"
-                pubDate = item.find('pubDate').text if item.find('pubDate') is not None else ""
                 
-                # Nettoyage du titre (Google ajoute souvent "- Source" à la fin)
                 source_name = "Actualité"
                 if " - " in title:
                     parts = title.rsplit(" - ", 1)
                     title = parts[0]
                     source_name = parts[1]
                 
-                news_list.append({
-                    'title': title,
-                    'link': link,
-                    'publisher': source_name,
-                    'date': pubDate
-                })
+                news_list.append({'title': title, 'link': link, 'publisher': source_name})
         return news_list
-    except Exception as e:
-        # En cas d'erreur, on retourne une liste vide sans faire planter l'app
-        return []
+    except: return []
 
 @st.cache_data(ttl=600)
 def compute_backtest_robust(plan_df, years=5):
@@ -265,7 +258,7 @@ if news_data:
             unsafe_allow_html=True
         )
 else:
-    st.sidebar.caption("Chargement des actualités...")
+    st.sidebar.caption("Actualisation...")
     if st.sidebar.button("Réessayer"):
         st.cache_data.clear()
 
@@ -360,10 +353,10 @@ elif page == "🔙 Backtest & Performance":
         sp500_raw = get_stock_data("^GSPC", period="5y")
         
         if portfolio_curve is not None and sp500_raw is not None:
-            # === CORRECTIF TIMEZONE (INDISPENSABLE) ===
+            # === CLEAN TZ ===
             if portfolio_curve.index.tz is not None: portfolio_curve.index = portfolio_curve.index.tz_localize(None)
             if sp500_raw.index.tz is not None: sp500_raw.index = sp500_raw.index.tz_localize(None)
-            
+
             start_date = portfolio_curve.index[0]
             sp500_aligned = sp500_raw['Close'][start_date:]
             
