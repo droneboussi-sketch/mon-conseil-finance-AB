@@ -93,20 +93,20 @@ TICKERS_TRACKER = {
 }
 
 DEFAULT_PLAN = [
-    {"Action": "Nasdaq 100", "Ticker": "CNDX.L", "Montant (€)": 1, "Fréquence": "1x / semaine"},
-    {"Action": "Berkshire B", "Ticker": "BRK-B", "Montant (€)": 2, "Fréquence": "1x / semaine"},
-    {"Action": "Take-Two", "Ticker": "TTWO", "Montant (€)": 3, "Fréquence": "1x / semaine"},
+    {"Action": "Nasdaq 100", "Ticker": "CNDX.L", "Montant (€)": 5, "Fréquence": "1x / semaine"},
+    {"Action": "Berkshire B", "Ticker": "BRK-B", "Montant (€)": 3, "Fréquence": "1x / semaine"},
+    {"Action": "Take-Two", "Ticker": "TTWO", "Montant (€)": 5, "Fréquence": "1x / semaine"},
     {"Action": "Saint-Gobain", "Ticker": "SGO.PA", "Montant (€)": 2, "Fréquence": "1x / 2 semaines"},
-    {"Action": "Burberry", "Ticker": "BRBY.L", "Montant (€)": 1, "Fréquence": "1x / semaine"},
-    {"Action": "MSCI India", "Ticker": "CIN.PA", "Montant (€)": 1, "Fréquence": "1x / 2 semaines"},
-    {"Action": "Apple", "Ticker": "AAPL", "Montant (€)": 1, "Fréquence": "1x / semaine"},
-    {"Action": "Dow Jones", "Ticker": "DIA", "Montant (€)": 2, "Fréquence": "1x / 2 semaines"},
-    {"Action": "Microsoft", "Ticker": "MSFT", "Montant (€)": 1, "Fréquence": "2x / mois"},
-    {"Action": "Future Defense", "Ticker": "NATO.PA", "Montant (€)": 1, "Fréquence": "1x / mois"},
-    {"Action": "Air Liquide", "Ticker": "AI.PA", "Montant (€)": 1, "Fréquence": "1x / mois"},
-    {"Action": "Nasdaq x3", "Ticker": "TQQQ", "Montant (€)": 2, "Fréquence": "1x / mois"},
+    {"Action": "Burberry", "Ticker": "BRBY.L", "Montant (€)": 5, "Fréquence": "1x / semaine"},
+    {"Action": "MSCI India", "Ticker": "CIN.PA", "Montant (€)": 2, "Fréquence": "1x / 2 semaines"},
+    {"Action": "Apple", "Ticker": "AAPL", "Montant (€)": 3, "Fréquence": "1x / semaine"},
+    {"Action": "Dow Jones", "Ticker": "DIA", "Montant (€)": 3, "Fréquence": "1x / 2 semaines"},
+    {"Action": "Microsoft", "Ticker": "MSFT", "Montant (€)": 5, "Fréquence": "2x / mois"},
+    {"Action": "Future Defense", "Ticker": "NATO.PA", "Montant (€)": 6, "Fréquence": "1x / mois"},
+    {"Action": "Air Liquide", "Ticker": "AI.PA", "Montant (€)": 8, "Fréquence": "1x / mois"},
+    {"Action": "Nasdaq x3", "Ticker": "TQQQ", "Montant (€)": 9, "Fréquence": "1x / mois"},
     {"Action": "Véolia", "Ticker": "VIE.PA", "Montant (€)": 2, "Fréquence": "2x / mois"},
-    {"Action": "World ex-USA", "Ticker": "ACWX", "Montant (€)": 3, "Fréquence": "1x / mois"},
+    {"Action": "World ex-USA", "Ticker": "ACWX", "Montant (€)": 7, "Fréquence": "1x / mois"},
 ]
 
 # -----------------------------------------------------------------------------
