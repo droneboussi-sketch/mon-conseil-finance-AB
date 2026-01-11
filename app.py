@@ -16,14 +16,12 @@ st.set_page_config(
     layout="wide"
 )
 
-# CSS CORRIGÉ POUR LE MODE SOMBRE
-# On force la couleur du texte (#2c3e50 ou #000000) avec !important
 st.markdown("""
 <style>
     .main { background-color: #f5f5f5; }
     h1 { color: #2c3e50; }
     
-    /* --- METRIQUES (Cartes avec prix) --- */
+    /* Cartes Metrics */
     div[data-testid="stMetric"] {
         background-color: #ffffff;
         padding: 15px;
@@ -31,16 +29,10 @@ st.markdown("""
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         border: 1px solid #e0e0e0;
     }
-    /* Force le titre en noir */
-    div[data-testid="stMetric"] label { 
-        color: #000000 !important; 
-    }
-    /* Force la valeur en noir */
-    div[data-testid="stMetric"] div[data-testid="stMetricValue"] { 
-        color: #000000 !important; 
-    }
+    div[data-testid="stMetric"] label { color: #000000 !important; }
+    div[data-testid="stMetric"] div[data-testid="stMetricValue"] { color: #000000 !important; }
     
-    /* --- SIDEBAR NEWS --- */
+    /* Sidebar News */
     .news-card {
         background-color: white;
         padding: 10px;
@@ -51,53 +43,74 @@ st.markdown("""
     }
     a.news-link {
         text-decoration: none;
-        color: #2c3e50 !important; /* Force le lien en foncé */
+        color: #2c3e50;
         font-weight: bold;
         font-size: 14px;
         display: block;
         margin-bottom: 4px;
     }
-    a.news-link:hover { color: #00CC96 !important; }
-    .news-meta { 
-        font-size: 11px; 
-        color: #666666 !important; /* Force le gris foncé */
-        display: flex; 
-        justify-content: space-between; 
-    }
+    a.news-link:hover { color: #00CC96; }
+    .news-meta { font-size: 11px; color: #888; display: flex; justify-content: space-between; }
 
-    /* --- CONSEILS (Cartes Avis) --- */
+    /* STYLE DES ARTICLES D'ANALYSE (BLOG) */
     .advice-card {
         background-color: white;
-        padding: 20px;
-        margin-bottom: 20px;
-        border-radius: 10px;
+        padding: 25px;
+        margin-bottom: 25px;
+        border-radius: 12px;
         border-top: 5px solid #636EFA;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        color: #2c3e50 !important; /* Force le texte global en foncé */
+        box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+        color: #2c3e50 !important;
     }
-    .advice-card h3 {
-        color: #2c3e50 !important; /* Titre en foncé */
-        margin-top: 0;
-    }
-    .advice-card p {
-        color: #333333 !important; /* Paragraphe en gris foncé */
+    .advice-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+        border-bottom: 1px solid #eee;
+        padding-bottom: 10px;
     }
     .advice-date {
-        color: #666666 !important;
-        font-size: 0.9em;
+        color: #666;
+        font-size: 0.85em;
         font-style: italic;
-        margin-bottom: 10px;
     }
-    .advice-tag {
-        background-color: #e0f2f1;
-        color: #00695c !important;
-        padding: 2px 8px;
-        border-radius: 12px;
-        font-size: 0.8em;
+    .advice-ticker {
+        background-color: #e3f2fd;
+        color: #1565c0;
+        padding: 4px 10px;
+        border-radius: 8px;
         font-weight: bold;
+        font-size: 0.9em;
+    }
+    .advice-title {
+        margin-top: 0;
+        color: #111 !important;
+        font-size: 1.4em;
+        font-weight: 800;
+        margin-bottom: 15px;
+    }
+    .advice-content {
+        color: #444 !important;
+        line-height: 1.7;
+        font-size: 1.05em;
+        text-align: justify;
+    }
+    .advice-content strong {
+        color: #000;
+        font-weight: 700;
+    }
+    .advice-action {
+        margin-top: 20px;
+        padding: 15px;
+        background-color: #f0fdf4; /* Vert très clair */
+        border-left: 5px solid #2ecc71;
+        font-weight: bold;
+        color: #14532d !important; /* Vert foncé */
+        font-size: 1.1em;
     }
 
-    /* --- FOOTER AFFILIATION --- */
+    /* Footer Affiliation */
     .footer-cta {
         margin-top: 50px;
         padding: 30px;
@@ -106,15 +119,10 @@ st.markdown("""
         text-align: center;
         border: 1px solid #d1d5db;
         box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-        color: #111111 !important; /* Force texte noir */
-    }
-    .footer-cta h3 {
         color: #111111 !important;
-        margin-bottom: 10px;
     }
-    .footer-cta p {
-        color: #333333 !important;
-    }
+    .footer-cta h3 { color: #111111 !important; margin-bottom: 10px; }
+    .footer-cta p { color: #333333 !important; }
     .cta-button {
         display: inline-block;
         background-color: #111; 
@@ -126,15 +134,12 @@ st.markdown("""
         margin-top: 15px;
         transition: transform 0.2s;
     }
-    .cta-button:hover {
-        transform: scale(1.05);
-        background-color: #333;
-    }
+    .cta-button:hover { transform: scale(1.05); background-color: #333; }
 </style>
 """, unsafe_allow_html=True)
 
 st.title("📈 BoussiBroke Investissement")
-st.markdown("Bienvenue ! Données financières ajustées (dividendes inclus) et actualités en direct.")
+st.markdown("Bienvenue ! Données financières ajustées, actualités en direct et mes analyses personnelles.")
 st.markdown("---")
 
 # -----------------------------------------------------------------------------
@@ -197,27 +202,86 @@ DEFAULT_PLAN = [
     {"Action": "Alphabet (Google)", "Ticker": "GOOGL", "Montant (€)": 3, "Fréquence": "1x / semaine"},
 ]
 
+# --- VOS ANALYSES TYPE "AKIONNAIRE" ---
 MY_ADVICE = [
     {
-        "date": "03 Janvier 2026",
-        "titre": "Pourquoi j'achète du Palantir (PLTR) maintenant ?",
-        "tag": "Tech / IA",
+        "date": "12 Janvier 2026",
+        "ticker": "🇬🇧 Burberry (BRBY)",
+        "titre": "Le pari du redressement (Turnaround)",
         "contenu": """
-        Palantir vient de signer un contrat majeur avec le gouvernement. L'analyse technique montre un support solide.
-        Je pense que l'IA n'est pas une bulle mais une révolution industrielle.
-        **Ma décision :** J'augmente ma position de 3€/semaine.
+        Burberry a souffert récemment (ralentissement du luxe, problèmes de positionnement). **Pourquoi j'investis ?**
+        Parce que c'est une marque iconique qui ne peut pas mourir. Le titre est massacré en bourse, ce qui offre un point d'entrée "Value" exceptionnel. 
+        J'achète l'hypothèse d'un rachat par un géant (LVMH/Kering) ou d'un redressement stratégique réussi.
+        <br><em>Le luxe est cyclique, et acheter quand tout le monde a peur est souvent payant.</em>
         """,
-        "lien": "https://www.palantir.com"
+        "action": "🟢 Investissement : 5€ / semaine"
     },
     {
-        "date": "15 Décembre 2025",
-        "titre": "L'Or : Ma protection contre l'inflation",
-        "tag": "Valeur Refuge",
+        "date": "10 Janvier 2026",
+        "ticker": "🇮🇳 MSCI India (Amundi)",
+        "titre": "L'Inde : La Chine d'il y a 20 ans ?",
         "contenu": """
-        Avec les taux directeurs qui bougent, l'or reste une valeur sûre. 
-        J'utilise l'ETF GLD pour ne pas avoir à stocker des lingots chez moi !
-        C'est un bon moyen de diversifier hors de la Tech.
-        """
+        La démographie est le destin. L'Inde vient de dépasser la Chine en population, avec une classe moyenne qui explose.
+        Les géants de la tech (Apple, Google) déplacent leurs usines là-bas.
+        **L'argument clé :** Une croissance du PIB à 6-7% par an alors que l'Europe stagne. C'est mon pari "Marché Émergent" incontournable pour la décennie.
+        """,
+        "action": "🟢 Investissement : 2€ / 2 semaines"
+    },
+    {
+        "date": "08 Janvier 2026",
+        "ticker": "🇺🇸 Microsoft (MSFT) & Alphabet (GOOGL)",
+        "titre": "Le duopole de l'Intelligence Artificielle",
+        "contenu": """
+        Inutile de chercher l'aiguille dans la botte de foin. Microsoft (avec OpenAI/ChatGPT) et Google (Gemini) possèdent les infrastructures.
+        **Microsoft** domine le monde pro avec Copilot intégré à Office.
+        **Google** reste le maître de la donnée et de la publicité.
+        Je ne choisis pas de vainqueur, j'achète les deux infrastructures sur lesquelles le futur se construit.
+        """,
+        "action": "🟢 Investissement : 5€ (MSFT) + 3€ (GOOGL)"
+    },
+    {
+        "date": "05 Janvier 2026",
+        "ticker": "🇫🇷 Saint-Gobain & Véolia",
+        "titre": "L'Industrie verte et la rénovation",
+        "contenu": """
+        On oublie souvent la "vieille économie". Pourtant :
+        1. **Saint-Gobain** est le leader mondial de la rénovation thermique (Green Deal européen). Si on isole les maisons, ils gagnent.
+        2. **Véolia** gère la ressource la plus précieuse du 21ème siècle : l'eau.
+        Ce sont des actions de "bon père de famille" qui équilibrent la volatilité de la Tech US.
+        """,
+        "action": "🔵 Renforcement régulier"
+    },
+    {
+        "date": "03 Janvier 2026",
+        "ticker": "🇺🇸 Palantir (PLTR)",
+        "titre": "Au-delà de la hype : le système d'exploitation de l'occident",
+        "contenu": """
+        Palantir a prouvé avec son produit AIP qu'ils pouvaient passer des contrats gouvernementaux au secteur privé à une vitesse folle.
+        Leur logiciel permet aux entreprises de **réellement** utiliser leurs données, pas juste de les stocker.
+        C'est ma ligne la plus volatile, mais celle avec le plus gros potentiel multiplicateur (x5 ou x10).
+        """,
+        "action": "🚀 Conviction : 3€ / semaine"
+    },
+    {
+        "date": "01 Janvier 2026",
+        "ticker": "🇪🇺 Future of Defense (NATO)",
+        "titre": "Le réarmement est une tendance lourde",
+        "contenu": """
+        Malheureusement, le monde est instable. Les budgets défense de l'OTAN augmentent partout (objectif 2% du PIB).
+        Cet ETF regroupe les entreprises qui bénéficient de ces commandes d'état (Thales, Rheinmetall, etc.).
+        C'est un investissement "macro-économique" pour couvrir le risque géopolitique de mon portefeuille.
+        """,
+        "action": "🛡️ Protection : 6€ / mois"
+    },
+    {
+        "date": "28 Décembre 2025",
+        "ticker": "🇺🇸 Berkshire Hathaway (BRK.B)",
+        "titre": "Dormir tranquille avec Warren Buffett",
+        "contenu": """
+        Quand la Tech baisse, Berkshire résiste souvent. C'est un conglomérat massif (Assurance, Energie, Chemin de fer) assis sur une montagne de cash (plus de 150 milliards $).
+        Investir ici, c'est comme avoir un gestionnaire de fortune ultra-prudent qui attend les crises pour racheter des entreprises en solde.
+        """,
+        "action": "🟢 Fond de portefeuille : 3€ / semaine"
     }
 ]
 
@@ -478,7 +542,7 @@ elif page == "🔙 Backtest & Performance":
         else: st.error("Impossible de construire le backtest. Données manquantes.")
 
 # -----------------------------------------------------------------------------
-# 8. PAGE : CONSEILS (NOUVEAU)
+# 8. PAGE : CONSEILS (BLOG)
 # -----------------------------------------------------------------------------
 elif page == "💡 Conseils & Tendances":
     st.header("💡 L'avis de BoussiBroke")
@@ -488,18 +552,23 @@ elif page == "💡 Conseils & Tendances":
         with st.container():
             st.markdown(f"""
             <div class="advice-card">
-                <div class="advice-date">{advice['date']}</div>
-                <h3>{advice['titre']} <span class="advice-tag">{advice['tag']}</span></h3>
-                <p>{advice['contenu']}</p>
+                <div class="advice-header">
+                    <span class="advice-date">{advice['date']}</span>
+                    <span class="advice-ticker">{advice['ticker']}</span>
+                </div>
+                <h3 class="advice-title">{advice['titre']}</h3>
+                <div class="advice-content">{advice['contenu']}</div>
+                <div class="advice-action">{advice['action']}</div>
             </div>
             """, unsafe_allow_html=True)
+            
             if "lien" in advice:
                 st.markdown(f"👉 [Lire l'article source ou voir le graphique]({advice['lien']})")
 
     st.warning("⚠️ **Avertissement :** Je partage ici mon avis personnel. Ce ne sont pas des conseils financiers.")
 
 # -----------------------------------------------------------------------------
-# 9. PIED DE PAGE : AFFILIATION (Affiché sur TOUTES les pages)
+# 9. PIED DE PAGE : AFFILIATION
 # -----------------------------------------------------------------------------
 st.markdown("---")
 st.markdown("""
