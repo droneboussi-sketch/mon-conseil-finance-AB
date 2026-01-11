@@ -21,6 +21,7 @@ st.markdown("""
     .main { background-color: #f5f5f5; }
     h1 { color: #2c3e50; }
     
+    /* Cartes Metrics */
     div[data-testid="stMetric"] {
         background-color: #ffffff;
         padding: 15px;
@@ -31,6 +32,7 @@ st.markdown("""
     div[data-testid="stMetric"] label { color: #000000 !important; }
     div[data-testid="stMetric"] div[data-testid="stMetricValue"] { color: #000000 !important; }
     
+    /* Sidebar News */
     .news-card {
         background-color: white;
         padding: 10px;
@@ -49,11 +51,65 @@ st.markdown("""
     }
     a.news-link:hover { color: #00CC96; }
     .news-meta { font-size: 11px; color: #888; display: flex; justify-content: space-between; }
+
+    /* Conseils */
+    .advice-card {
+        background-color: white;
+        padding: 20px;
+        margin-bottom: 20px;
+        border-radius: 10px;
+        border-top: 5px solid #636EFA;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .advice-date {
+        color: #666;
+        font-size: 0.9em;
+        font-style: italic;
+        margin-bottom: 10px;
+    }
+    .advice-tag {
+        background-color: #e0f2f1;
+        color: #00695c;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 0.8em;
+        font-weight: bold;
+    }
+
+    /* FOOTER AFFILIATION (NOUVEAU) */
+    .footer-cta {
+        margin-top: 50px;
+        padding: 30px;
+        background: linear-gradient(135deg, #ffffff 0%, #f0f2f6 100%);
+        border-radius: 15px;
+        text-align: center;
+        border: 1px solid #d1d5db;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    }
+    .footer-cta h3 {
+        color: #111;
+        margin-bottom: 10px;
+    }
+    .cta-button {
+        display: inline-block;
+        background-color: #111; /* Couleur Trade Republic (Noir) */
+        color: white !important;
+        padding: 12px 25px;
+        border-radius: 50px;
+        text-decoration: none;
+        font-weight: bold;
+        margin-top: 15px;
+        transition: transform 0.2s;
+    }
+    .cta-button:hover {
+        transform: scale(1.05);
+        background-color: #333;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 st.title("📈 BoussiBroke Investissement")
-st.markdown("Bienvenue ! Données financières ajustées (dividendes inclus) et actualités en direct.")
+st.markdown("Bienvenue ! Données financières ajustées, actualités en direct et mes analyses personnelles.")
 st.markdown("---")
 
 # -----------------------------------------------------------------------------
@@ -68,7 +124,6 @@ FREQ_MAP = {
     "3x / mois": 3.0
 }
 
-# Mapping devises
 CURRENCY_MAP = {
     "CNDX.L": "USD", "BRK-B": "USD", "TTWO": "USD", "SGO.PA": "EUR",
     "BRBY.L": "GBP", "CIN.PA": "EUR", "AAPL": "USD", "DIA": "USD",
@@ -77,7 +132,6 @@ CURRENCY_MAP = {
     "PLTR": "USD", "GLD": "USD", "GOOGL": "USD"
 }
 
-# Liste Tracker
 TICKERS_TRACKER = {
     "🇺🇸 Nasdaq 100 (iShares)": "CNDX.L", 
     "🇺🇸 Berkshire Hathaway B": "BRK-B",
@@ -98,7 +152,7 @@ TICKERS_TRACKER = {
     "🇺🇸 Alphabet (Google)": "GOOGL"
 }
 
-# PLAN MIS À JOUR AVEC TES NOUVEAUX MONTANTS
+# TES MONTANTS MIS À JOUR
 DEFAULT_PLAN = [
     {"Action": "Nasdaq 100", "Ticker": "CNDX.L", "Montant (€)": 5, "Fréquence": "1x / semaine"},
     {"Action": "Berkshire B", "Ticker": "BRK-B", "Montant (€)": 3, "Fréquence": "1x / semaine"},
@@ -114,10 +168,33 @@ DEFAULT_PLAN = [
     {"Action": "Nasdaq x3", "Ticker": "TQQQ", "Montant (€)": 9, "Fréquence": "1x / mois"},
     {"Action": "Véolia", "Ticker": "VIE.PA", "Montant (€)": 2, "Fréquence": "2x / mois"},
     {"Action": "World ex-USA", "Ticker": "ACWX", "Montant (€)": 7, "Fréquence": "1x / mois"},
-    # --- Les 3 ajouts précédents conservés ---
     {"Action": "Palantir", "Ticker": "PLTR", "Montant (€)": 3, "Fréquence": "1x / semaine"},
     {"Action": "Gold (Or USD)", "Ticker": "GLD", "Montant (€)": 3, "Fréquence": "1x / semaine"},
     {"Action": "Alphabet (Google)", "Ticker": "GOOGL", "Montant (€)": 3, "Fréquence": "1x / semaine"},
+]
+
+MY_ADVICE = [
+    {
+        "date": "03 Janvier 2026",
+        "titre": "Pourquoi j'achète du Palantir (PLTR) maintenant ?",
+        "tag": "Tech / IA",
+        "contenu": """
+        Palantir vient de signer un contrat majeur avec le gouvernement. L'analyse technique montre un support solide.
+        Je pense que l'IA n'est pas une bulle mais une révolution industrielle.
+        **Ma décision :** J'augmente ma position de 3€/semaine.
+        """,
+        "lien": "https://www.palantir.com"
+    },
+    {
+        "date": "15 Décembre 2025",
+        "titre": "L'Or : Ma protection contre l'inflation",
+        "tag": "Valeur Refuge",
+        "contenu": """
+        Avec les taux directeurs qui bougent, l'or reste une valeur sûre. 
+        J'utilise l'ETF GLD pour ne pas avoir à stocker des lingots chez moi !
+        C'est un bon moyen de diversifier hors de la Tech.
+        """
+    }
 ]
 
 # -----------------------------------------------------------------------------
@@ -135,7 +212,6 @@ def get_stock_data(ticker_symbol, period="5y"):
 
 @st.cache_data(ttl=900) 
 def get_market_news():
-    """Flux RSS Google News Finance."""
     rss_url = "https://news.google.com/rss/search?q=Bourse+Economie&hl=fr&gl=FR&ceid=FR:fr"
     news_list = []
     try:
@@ -146,20 +222,17 @@ def get_market_news():
             for item in root.findall('./channel/item')[:8]:
                 title = item.find('title').text if item.find('title') is not None else "Pas de titre"
                 link = item.find('link').text if item.find('link') is not None else "#"
-                
                 source_name = "Actualité"
                 if " - " in title:
                     parts = title.rsplit(" - ", 1)
                     title = parts[0]
                     source_name = parts[1]
-                
                 news_list.append({'title': title, 'link': link, 'publisher': source_name})
         return news_list
     except: return []
 
 @st.cache_data(ttl=600)
 def compute_backtest_robust(plan_df, years=5):
-    """Backtest robuste avec Adjusted Close."""
     plan_df["Budget_Ligne"] = plan_df["Montant (€)"] * plan_df["Fréquence"].map(FREQ_MAP).fillna(1.0)
     total_budget = plan_df["Budget_Ligne"].sum()
     if total_budget == 0: return None
@@ -187,7 +260,6 @@ def compute_backtest_robust(plan_df, years=5):
         ticker = row["Ticker"]
         weight = row["Poids"]
         currency = CURRENCY_MAP.get(ticker, "EUR")
-
         if ticker in data.columns:
             series = data[ticker].copy()
             if currency == "USD" and "EURUSD=X" in data.columns: series = series / data["EURUSD=X"]
@@ -236,10 +308,16 @@ def calculate_dca_curve(initial, monthly_amount, years, rate):
     return pd.DataFrame(data)
 
 # -----------------------------------------------------------------------------
-# 4. INTERFACE SIDEBAR
+# 4. INTERFACE SIDEBAR & NAVIGATION
 # -----------------------------------------------------------------------------
 st.sidebar.header("Navigation")
-page = st.sidebar.radio("Menu :", ["Suivi des Marchés", "Simulateur Futur", "🔙 Backtest & Performance"])
+page = st.sidebar.radio("Menu :", ["Suivi des Marchés", "Simulateur Futur", "🔙 Backtest & Performance", "💡 Conseils & Tendances"])
+st.sidebar.markdown("---")
+
+# Section Soutien (Ko-Fi)
+st.sidebar.header("☕ Soutenir le projet")
+st.sidebar.markdown("[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/)") 
+
 st.sidebar.markdown("---")
 st.sidebar.header("📰 Les Échos des Marchés")
 
@@ -262,8 +340,6 @@ else:
     if st.sidebar.button("Réessayer"):
         st.cache_data.clear()
 
-st.sidebar.markdown("---")
-
 # -----------------------------------------------------------------------------
 # 5. PAGE : SUIVI DES MARCHÉS
 # -----------------------------------------------------------------------------
@@ -273,7 +349,7 @@ if page == "Suivi des Marchés":
     if st.button("🔄 Actualiser les données maintenant"):
         st.cache_data.clear()
         
-    selected_indices = st.multiselect("Sélectionner les actifs :", list(TICKERS_TRACKER.keys()), default=["🇺🇸 Apple", "🇫🇷 Air Liquide"])
+    selected_indices = st.multiselect("Sélectionner les actifs :", list(TICKERS_TRACKER.keys()), default=["🇺🇸 Palantir", "🟡 Gold (Or USD)"])
     
     if selected_indices:
         cols = st.columns(len(selected_indices))
@@ -353,7 +429,7 @@ elif page == "🔙 Backtest & Performance":
         sp500_raw = get_stock_data("^GSPC", period="5y")
         
         if portfolio_curve is not None and sp500_raw is not None:
-            # === CLEAN TZ ===
+            # Clean TZ
             if portfolio_curve.index.tz is not None: portfolio_curve.index = portfolio_curve.index.tz_localize(None)
             if sp500_raw.index.tz is not None: sp500_raw.index = sp500_raw.index.tz_localize(None)
 
@@ -377,3 +453,41 @@ elif page == "🔙 Backtest & Performance":
                 st.plotly_chart(fig, use_container_width=True)
             else: st.error("Erreur alignement dates S&P 500.")
         else: st.error("Impossible de construire le backtest. Données manquantes.")
+
+# -----------------------------------------------------------------------------
+# 8. PAGE : CONSEILS (NOUVEAU)
+# -----------------------------------------------------------------------------
+elif page == "💡 Conseils & Tendances":
+    st.header("💡 L'avis de BoussiBroke")
+    st.markdown("Analyses personnelles, tendances à surveiller et articles marquants.")
+    
+    for advice in MY_ADVICE:
+        with st.container():
+            st.markdown(f"""
+            <div class="advice-card">
+                <div class="advice-date">{advice['date']}</div>
+                <h3>{advice['titre']} <span class="advice-tag">{advice['tag']}</span></h3>
+                <p>{advice['contenu']}</p>
+            </div>
+            """, unsafe_allow_html=True)
+            if "lien" in advice:
+                st.markdown(f"👉 [Lire l'article source ou voir le graphique]({advice['lien']})")
+
+    st.warning("⚠️ **Avertissement :** Je partage ici mon avis personnel. Ce ne sont pas des conseils financiers.")
+
+# -----------------------------------------------------------------------------
+# 9. PIED DE PAGE : AFFILIATION (Affiché sur TOUTES les pages)
+# -----------------------------------------------------------------------------
+st.markdown("---")
+st.markdown("""
+<div class="footer-cta">
+    <h3>🚀 Passez à l'action !</h3>
+    <p>Pour mettre en place cette stratégie d'investissement programmée (DCA) sans frais, j'utilise <strong>Trade Republic</strong>.</p>
+    <a href="https://trade.republic.com" target="_blank" class="cta-button">
+        Ouvrir un compte & recevoir une action offerte 🎁
+    </a>
+    <p style="font-size: 12px; margin-top: 15px; color: #666;">
+        *Lien affilié : Cela soutient le développement de BoussiBroke sans coût pour vous.
+    </p>
+</div>
+""", unsafe_allow_html=True)
