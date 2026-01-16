@@ -12,7 +12,7 @@ import streamlit.components.v1 as components  # <--- AJOUT IMPORTANT
 # 0. HACK GOOGLE SEARCH CONSOLE (A mettre avant la config page)
 # -----------------------------------------------------------------------------
 # Remplacez le texte ci-dessous par VOTRE code Google (celui après content=...)
-GOOGLE_VERIFICATION_CODE = "COLLEZ_VOTRE_CODE_GOOGLE_ICI" 
+GOOGLE_VERIFICATION_CODE = "<meta name="google-site-verification" content="1LsUrDCW7NK4ag6jlsjBUk6qw-DPBdv9uq1NXQ9Z1nU" />" 
 
 # Injection Javascript pour forcer la balise dans le <head>
 components.html(f"""
