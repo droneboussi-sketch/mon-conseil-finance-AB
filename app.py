@@ -6,15 +6,15 @@ import numpy as np
 import requests
 import xml.etree.ElementTree as ET
 from datetime import datetime
-import streamlit.components.v1 as components  # <--- AJOUT IMPORTANT
+import streamlit.components.v1 as components
 
 # -----------------------------------------------------------------------------
-# 0. HACK GOOGLE SEARCH CONSOLE (A mettre avant la config page)
+# 0. CONFIGURATION GOOGLE SEARCH CONSOLE
 # -----------------------------------------------------------------------------
-# Remplacez le texte ci-dessous par VOTRE code Google (celui après content=...)
-GOOGLE_VERIFICATION_CODE = "<meta name="google-site-verification" content="1LsUrDCW7NK4ag6jlsjBUk6qw-DPBdv9uq1NXQ9Z1nU" />" 
+# J'ai inséré votre code ici correctement (sans les balises autour)
+GOOGLE_VERIFICATION_CODE = "1LsUrDCW7NK4ag6jlsjBUk6qw-DPBdv9uq1NXQ9Z1nU"
 
-# Injection Javascript pour forcer la balise dans le <head>
+# Injection Javascript pour insérer la balise dans l'en-tête du site
 components.html(f"""
 <script>
     var meta = document.createElement('meta');
