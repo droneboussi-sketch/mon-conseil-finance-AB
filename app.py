@@ -9,7 +9,7 @@ from datetime import datetime
 import streamlit.components.v1 as components
 
 # -----------------------------------------------------------------------------
-# 1. CONFIGURATION DE LA PAGE (DOIT ÊTRE LA PREMIÈRE COMMANDE STREAMLIT)
+# 1. CONFIGURATION DE LA PAGE (PREMIÈRE LIGNE OBLIGATOIRE)
 # -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="BoussiBroke | Conseils Bourse & Investissement",
@@ -18,28 +18,31 @@ st.set_page_config(
 )
 
 # -----------------------------------------------------------------------------
-# 2. HACK GOOGLE SEARCH CONSOLE (Placé APRÈS la config page pour éviter le crash)
+# 2. HACK GOOGLE SEARCH CONSOLE
 # -----------------------------------------------------------------------------
 GOOGLE_VERIFICATION_CODE = "1LsUrDCW7NK4ag6jlsjBUk6qw-DPBdv9uq1NXQ9Z1nU"
 
-components.html(f"""
-<script>
-    var meta = document.createElement('meta');
-    meta.name = "google-site-verification";
-    meta.content = "{GOOGLE_VERIFICATION_CODE}";
-    document.getElementsByTagName('head')[0].appendChild(meta);
-</script>
-""", height=0)
+# On met le hack dans un try/except pour éviter que ça ne bloque tout le site en cas d'erreur
+try:
+    components.html(f"""
+    <script>
+        var meta = document.createElement('meta');
+        meta.name = "google-site-verification";
+        meta.content = "{GOOGLE_VERIFICATION_CODE}";
+        document.getElementsByTagName('head')[0].appendChild(meta);
+    </script>
+    """, height=0)
+except:
+    pass
 
 # -----------------------------------------------------------------------------
-# 3. STYLE CSS
+# 3. STYLE CSS (Optimisé)
 # -----------------------------------------------------------------------------
 st.markdown("""
 <style>
     .main { background-color: #f5f5f5; }
     h1 { color: #2c3e50; }
     
-    /* Cartes Metrics */
     div[data-testid="stMetric"] {
         background-color: #ffffff;
         padding: 15px;
@@ -50,7 +53,6 @@ st.markdown("""
     div[data-testid="stMetric"] label { color: #000000 !important; }
     div[data-testid="stMetric"] div[data-testid="stMetricValue"] { color: #000000 !important; }
     
-    /* Sidebar News */
     .news-card {
         background-color: white;
         padding: 10px;
@@ -70,7 +72,6 @@ st.markdown("""
     a.news-link:hover { color: #00CC96; }
     .news-meta { font-size: 11px; color: #888; display: flex; justify-content: space-between; }
 
-    /* STYLE DES ARTICLES D'ANALYSE (BLOG) */
     .advice-card {
         background-color: white;
         padding: 25px;
@@ -88,47 +89,13 @@ st.markdown("""
         border-bottom: 1px solid #eee;
         padding-bottom: 10px;
     }
-    .advice-date {
-        color: #666;
-        font-size: 0.85em;
-        font-style: italic;
-    }
-    .advice-ticker {
-        background-color: #e3f2fd;
-        color: #1565c0;
-        padding: 4px 10px;
-        border-radius: 8px;
-        font-weight: bold;
-        font-size: 0.9em;
-    }
-    .advice-title {
-        margin-top: 0;
-        color: #111 !important;
-        font-size: 1.4em;
-        font-weight: 800;
-        margin-bottom: 15px;
-    }
-    .advice-content {
-        color: #444 !important;
-        line-height: 1.7;
-        font-size: 1.05em;
-        text-align: justify;
-    }
-    .advice-content strong {
-        color: #000;
-        font-weight: 700;
-    }
-    .advice-action {
-        margin-top: 20px;
-        padding: 15px;
-        background-color: #f0fdf4; /* Vert très clair */
-        border-left: 5px solid #2ecc71;
-        font-weight: bold;
-        color: #14532d !important; /* Vert foncé */
-        font-size: 1.1em;
-    }
+    .advice-date { color: #666; font-size: 0.85em; font-style: italic; }
+    .advice-ticker { background-color: #e3f2fd; color: #1565c0; padding: 4px 10px; border-radius: 8px; font-weight: bold; font-size: 0.9em; }
+    .advice-title { margin-top: 0; color: #111 !important; font-size: 1.4em; font-weight: 800; margin-bottom: 15px; }
+    .advice-content { color: #444 !important; line-height: 1.7; font-size: 1.05em; text-align: justify; }
+    .advice-content strong { color: #000; font-weight: 700; }
+    .advice-action { margin-top: 20px; padding: 15px; background-color: #f0fdf4; border-left: 5px solid #2ecc71; font-weight: bold; color: #14532d !important; font-size: 1.1em; }
 
-    /* Footer Affiliation */
     .footer-cta {
         margin-top: 50px;
         padding: 30px;
@@ -303,10 +270,11 @@ MY_ADVICE = [
 ]
 
 # -----------------------------------------------------------------------------
-# 5. FONCTIONS UTILITAIRES
+# 5. FONCTIONS UTILITAIRES (OPTIMISÉES STABILITÉ)
 # -----------------------------------------------------------------------------
 
-@st.cache_data(ttl=600)
+# Cache augmenté à 4 heures (14400s) pour éviter les crashs au démarrage
+@st.cache_data(ttl=14400)
 def get_stock_data(ticker_symbol, period="5y"):
     try:
         stock = yf.Ticker(ticker_symbol)
@@ -315,19 +283,20 @@ def get_stock_data(ticker_symbol, period="5y"):
         return history
     except: return None
 
-@st.cache_data(ttl=900) 
+# Cache news augmenté à 1h (3600s)
+@st.cache_data(ttl=3600) 
 def get_market_news():
     rss_url = "https://news.google.com/rss/search?q=Bourse+Economie&hl=fr&gl=FR&ceid=FR:fr"
     news_list = []
     try:
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
-        response = requests.get(rss_url, headers=headers, timeout=5)
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        response = requests.get(rss_url, headers=headers, timeout=3) # Timeout court pour ne pas bloquer
         if response.status_code == 200:
             root = ET.fromstring(response.content)
             for item in root.findall('./channel/item')[:8]:
-                title = item.find('title').text if item.find('title') is not None else "Pas de titre"
+                title = item.find('title').text if item.find('title') is not None else ""
                 link = item.find('link').text if item.find('link') is not None else "#"
-                source_name = "Actualité"
+                source_name = "Info"
                 if " - " in title:
                     parts = title.rsplit(" - ", 1)
                     title = parts[0]
@@ -336,7 +305,8 @@ def get_market_news():
         return news_list
     except: return []
 
-@st.cache_data(ttl=600)
+# Cache Backtest augmenté à 4 heures pour stabilité
+@st.cache_data(ttl=14400)
 def compute_backtest_robust(plan_df, years=5):
     plan_df["Budget_Ligne"] = plan_df["Montant (€)"] * plan_df["Fréquence"].map(FREQ_MAP).fillna(1.0)
     total_budget = plan_df["Budget_Ligne"].sum()
@@ -347,7 +317,9 @@ def compute_backtest_robust(plan_df, years=5):
     tickers_api = list(set(tickers + ["EURUSD=X", "EURGBP=X"]))
 
     try:
-        raw_data = yf.download(tickers_api, period=f"{years}y", progress=False, auto_adjust=True)
+        # threads=False est la clé pour éviter le crash sur Streamlit Cloud Free
+        raw_data = yf.download(tickers_api, period=f"{years}y", progress=False, auto_adjust=True, threads=False)
+        
         if isinstance(raw_data.columns, pd.MultiIndex):
             if 'Close' in raw_data.columns.get_level_values(0): data = raw_data['Close']
             elif 'Adj Close' in raw_data.columns.get_level_values(0): data = raw_data['Adj Close']
@@ -442,8 +414,6 @@ if news_data:
         )
 else:
     st.sidebar.caption("Actualisation...")
-    if st.sidebar.button("Réessayer"):
-        st.cache_data.clear()
 
 # -----------------------------------------------------------------------------
 # 7. PAGE : SUIVI DES MARCHÉS
@@ -451,7 +421,8 @@ else:
 if page == "Suivi des Marchés":
     st.header("📊 Suivi des Cours en Direct")
     
-    if st.button("🔄 Actualiser les données maintenant"):
+    # Bouton refresh manuel pour éviter le rechargement auto permanent
+    if st.button("🔄 Rafraîchir les cours"):
         st.cache_data.clear()
         
     selected_indices = st.multiselect("Sélectionner les actifs :", list(TICKERS_TRACKER.keys()), default=["🇺🇸 Palantir", "🟡 Gold (Or USD)"])
@@ -556,7 +527,7 @@ elif page == "🔙 Backtest & Performance":
                 fig.update_layout(title="Performance Historique (Base 100)", yaxis_title="Base 100")
                 st.plotly_chart(fig, use_container_width=True)
             else: st.error("Erreur alignement dates S&P 500.")
-        else: st.error("Impossible de construire le backtest. Données manquantes.")
+        else: st.error("Impossible de construire le backtest. Données manquantes (Yahoo). Réessayez plus tard.")
 
 # -----------------------------------------------------------------------------
 # 10. PAGE : CONSEILS (BLOG)
