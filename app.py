@@ -9,12 +9,19 @@ from datetime import datetime
 import streamlit.components.v1 as components
 
 # -----------------------------------------------------------------------------
-# 0. CONFIGURATION GOOGLE SEARCH CONSOLE
+# 1. CONFIGURATION DE LA PAGE (DOIT ÊTRE LA PREMIÈRE COMMANDE STREAMLIT)
 # -----------------------------------------------------------------------------
-# J'ai inséré votre code ici correctement (sans les balises autour)
+st.set_page_config(
+    page_title="BoussiBroke | Conseils Bourse & Investissement",
+    page_icon="📈",
+    layout="wide"
+)
+
+# -----------------------------------------------------------------------------
+# 2. HACK GOOGLE SEARCH CONSOLE (Placé APRÈS la config page pour éviter le crash)
+# -----------------------------------------------------------------------------
 GOOGLE_VERIFICATION_CODE = "1LsUrDCW7NK4ag6jlsjBUk6qw-DPBdv9uq1NXQ9Z1nU"
 
-# Injection Javascript pour insérer la balise dans l'en-tête du site
 components.html(f"""
 <script>
     var meta = document.createElement('meta');
@@ -25,14 +32,8 @@ components.html(f"""
 """, height=0)
 
 # -----------------------------------------------------------------------------
-# 1. CONFIGURATION DE LA PAGE & STYLE
+# 3. STYLE CSS
 # -----------------------------------------------------------------------------
-st.set_page_config(
-    page_title="BoussiBroke Investissement",
-    page_icon="📈",
-    layout="wide"
-)
-
 st.markdown("""
 <style>
     .main { background-color: #f5f5f5; }
@@ -160,7 +161,7 @@ st.markdown("Bienvenue ! Données financières ajustées, actualités en direct 
 st.markdown("---")
 
 # -----------------------------------------------------------------------------
-# 2. DONNÉES & PARAMÈTRES
+# 4. DONNÉES & PARAMÈTRES
 # -----------------------------------------------------------------------------
 
 FREQ_MAP = {
@@ -219,7 +220,6 @@ DEFAULT_PLAN = [
     {"Action": "Alphabet (Google)", "Ticker": "GOOGL", "Montant (€)": 3, "Fréquence": "1x / semaine"},
 ]
 
-# --- VOS ANALYSES TYPE "AKIONNAIRE" ---
 MY_ADVICE = [
     {
         "date": "12 Janvier 2026",
@@ -303,7 +303,7 @@ MY_ADVICE = [
 ]
 
 # -----------------------------------------------------------------------------
-# 3. FONCTIONS UTILITAIRES
+# 5. FONCTIONS UTILITAIRES
 # -----------------------------------------------------------------------------
 
 @st.cache_data(ttl=600)
@@ -413,7 +413,7 @@ def calculate_dca_curve(initial, monthly_amount, years, rate):
     return pd.DataFrame(data)
 
 # -----------------------------------------------------------------------------
-# 4. INTERFACE SIDEBAR & NAVIGATION
+# 6. INTERFACE SIDEBAR & NAVIGATION
 # -----------------------------------------------------------------------------
 st.sidebar.header("Navigation")
 page = st.sidebar.radio("Menu :", ["Suivi des Marchés", "Simulateur Futur", "🔙 Backtest & Performance", "💡 Conseils & Tendances"])
@@ -446,7 +446,7 @@ else:
         st.cache_data.clear()
 
 # -----------------------------------------------------------------------------
-# 5. PAGE : SUIVI DES MARCHÉS
+# 7. PAGE : SUIVI DES MARCHÉS
 # -----------------------------------------------------------------------------
 if page == "Suivi des Marchés":
     st.header("📊 Suivi des Cours en Direct")
@@ -477,7 +477,7 @@ if page == "Suivi des Marchés":
         st.plotly_chart(fig, use_container_width=True)
 
 # -----------------------------------------------------------------------------
-# 6. PAGE : SIMULATEUR FUTUR
+# 8. PAGE : SIMULATEUR FUTUR
 # -----------------------------------------------------------------------------
 elif page == "Simulateur Futur":
     st.header("🚀 Plan d'Achat & Futur")
@@ -519,7 +519,7 @@ elif page == "Simulateur Futur":
         st.dataframe(df_proj.style.format({"Total Versé (€)": "{:,.0f} €", "Valeur Estimée (€)": "{:,.0f} €", "Plus-Value (€)": "{:+,.0f} €"}), use_container_width=True, hide_index=True)
 
 # -----------------------------------------------------------------------------
-# 7. PAGE : BACKTEST (S&P500)
+# 9. PAGE : BACKTEST (S&P500)
 # -----------------------------------------------------------------------------
 elif page == "🔙 Backtest & Performance":
     st.header("⏳ Voyage dans le temps (Backtest)")
@@ -559,7 +559,7 @@ elif page == "🔙 Backtest & Performance":
         else: st.error("Impossible de construire le backtest. Données manquantes.")
 
 # -----------------------------------------------------------------------------
-# 8. PAGE : CONSEILS (BLOG)
+# 10. PAGE : CONSEILS (BLOG)
 # -----------------------------------------------------------------------------
 elif page == "💡 Conseils & Tendances":
     st.header("💡 L'avis de BoussiBroke")
@@ -585,7 +585,7 @@ elif page == "💡 Conseils & Tendances":
     st.warning("⚠️ **Avertissement :** Je partage ici mon avis personnel. Ce ne sont pas des conseils financiers.")
 
 # -----------------------------------------------------------------------------
-# 9. PIED DE PAGE : AFFILIATION
+# 11. PIED DE PAGE : AFFILIATION
 # -----------------------------------------------------------------------------
 st.markdown("---")
 st.markdown("""
